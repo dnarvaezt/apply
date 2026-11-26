@@ -41,6 +41,32 @@ describe("htmlToText", () => {
 });
 
 describe("fetchVacancyText", () => {
+  it.each([
+    "https://www.linkedin.com/jobs/view/1",
+    "https://linkedin.com/jobs/view/1",
+    "https://es.linkedin.com/jobs/view/1",
+    "https://lnkd.linkedin.com/x",
+    "https://LinkedIn.com/jobs/view/1",
+    "https://WWW.LINKEDIN.COM/jobs/view/1",
+  ])("rechaza %s pidiendo pegar el texto, sin llamar a la red", async (url) => {
+    const fetchMock = stubFetch(`<p>${LONG}</p>`);
+    await expect(fetchVacancyText(url)).rejects.toThrow(
+      "LinkedIn no permite la descarga automática. Pega el texto de la vacante.",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "https://notlinkedin.com/x",
+    "https://linkedin.com.evil.com/x",
+    "https://example.com/linkedin.com",
+    "https://user:pw@example.com/?u=www.linkedin.com",
+  ])("no rechaza por host %s", async (url) => {
+    const fetchMock = stubFetch(`<p>${LONG}</p>`);
+    expect(await fetchVacancyText(url)).toBe(LONG.trim());
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("rechaza protocolos que no son http(s) sin llamar a la red", async () => {
     const fetchMock = stubFetch("x");
     await expect(fetchVacancyText("file:///etc/passwd")).rejects.toThrow("URL no soportada");

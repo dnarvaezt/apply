@@ -29,3 +29,14 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
   await page.getByRole("button", { name: "00-contacto.md" }).click();
   await expect(page.locator("textarea:not([placeholder])")).toHaveValue(new RegExp(marker));
 });
+
+test("POST /api/vacancies con una URL de LinkedIn y sin texto pide pegar el texto", async ({
+  request,
+}) => {
+  const res = await request.post("http://localhost:3101/api/vacancies", {
+    data: { url: "https://www.linkedin.com/jobs/view/1" },
+  });
+  expect(res.status()).toBeGreaterThanOrEqual(400);
+  const body = (await res.json()) as { error: string };
+  expect(body.error).toContain("Pega el texto de la vacante");
+});
