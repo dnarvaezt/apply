@@ -1,5 +1,5 @@
+import type { CvDoc, MatchReport } from "@apply/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CvDoc, MatchReport } from "../../shared/types.ts";
 import { api, generateCv } from "./api.ts";
 
 afterEach(() => {

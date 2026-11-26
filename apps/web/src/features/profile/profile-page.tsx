@@ -1,3 +1,4 @@
+import type { IndexStatus, ProfileFile } from "@apply/shared";
 import { DatabaseZap, FilePlus2, RefreshCw, Save, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { IndexStatus, ProfileFile } from "../../../shared/types.ts";
 
 export function ProfilePage() {
   const [files, setFiles] = useState<ProfileFile[]>([]);
