@@ -1,0 +1,74 @@
+/* Estilo del CV: se usa igual en la vista previa (React) y en el PDF (Chrome headless). */
+.cv {
+  --cv-ink: #1a1a1a;
+  --cv-muted: #555;
+  --cv-accent: #1f4e79;
+  --cv-rule: #d6dde5;
+  font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  color: var(--cv-ink);
+  font-size: 10.5pt;
+  line-height: 1.42;
+  background: #fff;
+}
+.cv h1 {
+  font-size: 22pt;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 2pt;
+  color: var(--cv-ink);
+}
+.cv h1 + p {
+  margin: 0 0 2pt;
+  font-size: 12pt;
+  color: var(--cv-accent);
+}
+.cv h1 + p + p {
+  margin: 0 0 10pt;
+  color: var(--cv-muted);
+  font-size: 9.5pt;
+}
+.cv h2 {
+  font-size: 11pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cv-accent);
+  border-bottom: 1.2px solid var(--cv-rule);
+  padding-bottom: 2pt;
+  margin: 12pt 0 6pt;
+  break-after: avoid;
+}
+.cv h3 {
+  font-size: 10.8pt;
+  font-weight: 650;
+  margin: 8pt 0 1pt;
+  break-after: avoid;
+}
+.cv h3 + p {
+  margin: 0 0 3pt;
+  color: var(--cv-muted);
+  font-size: 9.5pt;
+}
+.cv p {
+  margin: 0 0 5pt;
+}
+.cv ul {
+  margin: 0 0 5pt;
+  list-style: disc;
+  padding-left: 14pt;
+}
+.cv li {
+  margin: 0 0 2pt;
+  break-inside: avoid;
+}
+.cv a {
+  color: var(--cv-accent);
+  text-decoration: none;
+}
+.cv strong {
+  font-weight: 650;
+}
+.cv hr {
+  border: 0;
+  border-top: 1px solid var(--cv-rule);
+  margin: 8pt 0;
+}
