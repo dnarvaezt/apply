@@ -1,6 +1,6 @@
 # Apply
 
-Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local, sin base de datos: los datos son archivos en `./data`.
+Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local: los datos son archivos en `./data` (Postgres + pgvector en Docker llega con la épica de base de datos).
 
 **Stack:** TypeScript · React 19 · Vite · Tailwind v4 · shadcn/ui · Biome · Hono (API local) · Claude API · embeddings locales con Transformers.js · Chrome (puppeteer-core) para el PDF.
 
@@ -51,11 +51,27 @@ data/
 | `CHROME_PATH`       | autodetección                  | Ejecutable de Chrome/Chromium  |
 | `PORT`              | `3001`                         | Puerto de la API               |
 
+## Base de datos
+
+Postgres 18 con pgvector (`pgvector/pgvector:0.8.7-pg18`) en Docker Compose; la app sigue corriendo en el host.
+
+```bash
+cp .env.example .env   # cambia POSTGRES_PASSWORD (y DATABASE_URL en consecuencia)
+npm run db:up          # levanta el servicio db y espera a que esté healthy
+npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
+```
+
+- El puerto se publica solo en `127.0.0.1:${PG_PORT:-5432}`.
+- Sin `POSTGRES_PASSWORD`, `docker compose` falla y nombra la variable.
+- Para aislar contenedor y volumen por worktree define `COMPOSE_PROJECT_NAME` y `PG_PORT` distintos.
+- `docker compose down -v` borra el volumen y los datos.
+
 ## Scripts
 
 - `npm run dev`: API (:3001) y web con recarga (workspaces `@apply/api` y `@apply/web`)
 - `npm run build`: typecheck y build del frontend
 - `npm run typecheck`: `tsc -b` sobre los cuatro workspaces
+- `npm run db:up` / `npm run db:down`: levanta o detiene Postgres + pgvector (Docker Compose)
 - `npm run db:generate`: `drizzle-kit generate` en `packages/db` (no necesita Postgres)
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
