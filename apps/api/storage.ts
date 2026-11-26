@@ -1,8 +1,9 @@
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { resolveDataDir } from "./paths.ts";
 import { PROFILE_TEMPLATES } from "./templates.ts";
 
-export const DATA_DIR = path.resolve(process.env.CV_DATA_DIR ?? "data");
+export const DATA_DIR = resolveDataDir(process.env.CV_DATA_DIR);
 export const PROFILE_DIR = path.join(DATA_DIR, "profile");
 export const VACANCIES_DIR = path.join(DATA_DIR, "vacancies");
 export const CVS_DIR = path.join(DATA_DIR, "cvs");

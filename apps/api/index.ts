@@ -1,12 +1,13 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
+import type { CvDoc, CvMeta, GenerateCvRequest, ProfileFile, Vacancy } from "@apply/shared";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import type { CvDoc, CvMeta, GenerateCvRequest, ProfileFile, Vacancy } from "../shared/types.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
 import { cleanMarkdown, extractVacancy, MODEL, streamCv } from "./llm.ts";
+import { ENV_FILE } from "./paths.ts";
 import { closeBrowser, markdownToPdf } from "./pdf.ts";
 import { buildIndex, getIndexStatus, retrieveForVacancy } from "./rag/index.ts";
 import {
@@ -25,7 +26,7 @@ import {
 } from "./storage.ts";
 
 try {
-  process.loadEnvFile(".env");
+  process.loadEnvFile(ENV_FILE);
 } catch {
   // sin .env: se usan variables de entorno o el perfil de `ant auth login`
 }

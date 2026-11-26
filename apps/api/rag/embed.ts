@@ -1,12 +1,12 @@
-import path from "node:path";
 import { env, type FeatureExtractionPipeline, pipeline } from "@huggingface/transformers";
+import { MODELS_DIR } from "../paths.ts";
 
 /**
  * Embeddings 100% locales con transformers.js (ONNX). El modelo se descarga una sola vez
  * (~120 MB) a .cache/models. multilingual-e5 funciona bien con español e inglés.
  */
 export const EMBED_MODEL = process.env.EMBED_MODEL ?? "Xenova/multilingual-e5-small";
-env.cacheDir = path.resolve(".cache/models");
+env.cacheDir = MODELS_DIR;
 
 let extractor: Promise<FeatureExtractionPipeline> | null = null;
 

@@ -15,13 +15,13 @@ export default {
   tsconfigFile: "tsconfig.stryker-inexistente.json",
   vitest: { configFile: "vitest.config.ts" },
   mutate: smoke
-    ? ["server/rag/chunk.ts"]
+    ? ["apps/api/rag/chunk.ts"]
     : [
-        "server/rag/chunk.ts",
-        "server/storage.ts",
-        "server/fetch-url.ts",
-        "server/llm.ts:144-151",
-        "src/lib/api.ts:1-108",
+        "apps/api/rag/chunk.ts",
+        "apps/api/storage.ts",
+        "apps/api/fetch-url.ts",
+        "apps/api/llm.ts:144-151",
+        "apps/web/src/lib/api.ts:1-108",
       ],
   coverageAnalysis: "perTest",
   reporters: ["clear-text", "html", "json"],

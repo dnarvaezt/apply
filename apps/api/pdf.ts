@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { marked } from "marked";
 import puppeteer, { type Browser } from "puppeteer-core";
+import { CV_THEME_CSS } from "./paths.ts";
 
 const CHROME_CANDIDATES = [
   process.env.CHROME_PATH,
@@ -27,7 +27,7 @@ function getBrowser(): Promise<Browser> {
 }
 
 export async function renderCvHtml(markdown: string, title: string): Promise<string> {
-  const css = await readFile(path.resolve("shared/cv-theme.css"), "utf8");
+  const css = await readFile(CV_THEME_CSS, "utf8");
   const body = await marked.parse(markdown, { gfm: true });
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>

@@ -7,7 +7,7 @@ import type {
   RequirementMatch,
   RetrievedChunk,
   Vacancy,
-} from "../../shared/types.ts";
+} from "@apply/shared";
 import { INDEX_FILE, listFiles, mtime, PROFILE_DIR, readJson, writeJson } from "../storage.ts";
 import { type Chunk, chunkMarkdown } from "./chunk.ts";
 import { cosine, EMBED_MODEL, embed } from "./embed.ts";
