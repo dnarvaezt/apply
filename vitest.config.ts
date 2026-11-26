@@ -23,6 +23,24 @@ export default defineConfig({
           include: ["apps/web/src/**/*.test.{ts,tsx}"],
         },
       },
+      {
+        test: {
+          name: "db",
+          environment: "node",
+          include: ["packages/db/test/*.test.ts"],
+          exclude: ["packages/db/test/*.integration.test.ts"],
+        },
+      },
+      {
+        test: {
+          name: "db-integration",
+          environment: "node",
+          include: ["packages/db/test/*.integration.test.ts"],
+          globalSetup: ["packages/db/test/global-setup.ts"],
+          testTimeout: 30_000,
+          hookTimeout: 180_000,
+        },
+      },
     ],
     coverage: {
       provider: "v8",
