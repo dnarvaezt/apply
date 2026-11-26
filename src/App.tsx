@@ -17,7 +17,7 @@ export default function App() {
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
           <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3">
-            <h1 className="font-semibold tracking-tight">CV Tailor</h1>
+            <h1 className="font-semibold tracking-tight">Apply</h1>
             <TabsList>
               <TabsTrigger value="profile">
                 <UserRound /> Mi perfil

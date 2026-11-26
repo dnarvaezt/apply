@@ -1,4 +1,4 @@
-# CV Tailor
+# Apply
 
 Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local, sin base de datos: los datos son archivos en `./data`.
 
