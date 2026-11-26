@@ -58,6 +58,11 @@ data/
 - `npm run typecheck`
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
+- `npm test`: Vitest (proyectos `api` y `web`)
+- `npm run coverage`: cobertura v8, falla bajo 80% de líneas o ramas
+- `npm run mutation`: Stryker sobre módulos puros, falla bajo 70%
+- `npm run mut:smoke`: canario de mutación sobre `server/rag/chunk.ts`
+- `npm run e2e`: Playwright con API y web levantadas y un directorio de datos temporal (usa Chrome del host o `npx playwright install chromium`)
 
 ## Estructura
 

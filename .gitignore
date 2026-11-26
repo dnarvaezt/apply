@@ -8,3 +8,11 @@ dist
 data/*
 !data/.gitkeep
 .cache
+
+# Reportes de calidad local
+reports/
+.stryker-tmp/
+test-results/
+playwright-report/
+blob-report/
+coverage/
