@@ -5,7 +5,6 @@ import { PROFILE_TEMPLATES } from "./templates.ts";
 
 export const DATA_DIR = resolveDataDir(process.env.CV_DATA_DIR);
 export const PROFILE_DIR = path.join(DATA_DIR, "profile");
-export const INDEX_FILE = path.join(DATA_DIR, "index.json");
 
 export async function ensureDataDirs(): Promise<void> {
   await mkdir(PROFILE_DIR, { recursive: true });

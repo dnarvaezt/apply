@@ -1,189 +1,143 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type {
-  IndexStatus,
-  MatchLevel,
-  MatchReport,
-  RequirementMatch,
-  RetrievedChunk,
-  Vacancy,
-} from "@apply/shared";
-import { INDEX_FILE, listFiles, mtime, PROFILE_DIR, readJson, writeJson } from "../storage.ts";
+import type { IndexStatus, MatchReport, Vacancy } from "@apply/shared";
+import { type Db, getDb } from "../db.ts";
+import { listFiles, mtime, PROFILE_DIR } from "../storage.ts";
 import { type Chunk, chunkMarkdown } from "./chunk.ts";
-import { cosine, EMBED_MODEL, embed } from "./embed.ts";
+import { EMBED_MODEL, embed } from "./embed.ts";
+import { buildMatchReport, isStale, rankChunks, vacancyQueries } from "./match.ts";
+import { createProfileChunksRepository, type FileChunks } from "./repository.ts";
 
-interface StoredChunk extends Chunk {
-  vector: number[];
-}
-
-interface StoredIndex {
+export interface RagDeps {
+  db: Db;
+  profileDir: string;
   model: string;
-  builtAt: string;
-  fileMtimes: Record<string, number>;
-  chunks: StoredChunk[];
+  embed: (texts: string[], kind: "query" | "passage") => Promise<number[][]>;
 }
 
-/** Archivos con este prefijo siempre entran al contexto (contacto, resumen base). */
-const ALWAYS_PREFIX = "00-";
-const TOP_PER_QUERY = 3;
-const MAX_CONTEXT_CHUNKS = 30;
-
-// Umbrales calibrados para multilingual-e5-small (similitudes comprimidas en ~0.7–0.95)
-const STRONG = 0.88;
-const PARTIAL = 0.835;
-
-let cache: StoredIndex | null = null;
-
-async function loadIndex(): Promise<StoredIndex | null> {
-  cache ??= await readJson<StoredIndex>(INDEX_FILE);
-  return cache;
-}
-
-async function currentMtimes(): Promise<Record<string, number>> {
-  const files = await listFiles(PROFILE_DIR, ".md");
-  const out: Record<string, number> = {};
-  for (const f of files) out[f] = await mtime(path.join(PROFILE_DIR, f));
-  return out;
-}
-
-export async function getIndexStatus(): Promise<IndexStatus> {
-  const index = await loadIndex();
-  const mtimes = await currentMtimes();
-  const stale =
-    !index ||
-    index.model !== EMBED_MODEL ||
-    Object.keys(mtimes).length !== Object.keys(index.fileMtimes).length ||
-    Object.entries(mtimes).some(([f, m]) => index.fileMtimes[f] !== m);
-  return {
-    builtAt: index?.builtAt ?? null,
-    files: Object.keys(mtimes).length,
-    chunks: index?.chunks.length ?? 0,
-    stale,
-    model: EMBED_MODEL,
-  };
-}
-
-export async function buildIndex(): Promise<IndexStatus> {
-  const mtimes = await currentMtimes();
-  const chunks: Chunk[] = [];
-  for (const file of Object.keys(mtimes)) {
-    const content = await readFile(path.join(PROFILE_DIR, file), "utf8");
-    chunks.push(...chunkMarkdown(file, content));
-  }
-  const vectors = await embed(
-    chunks.map((c) => `${c.heading}\n${c.text}`),
-    "passage",
-  );
-  cache = {
-    model: EMBED_MODEL,
-    builtAt: new Date().toISOString(),
-    fileMtimes: mtimes,
-    chunks: chunks.map((c, i) => ({ ...c, vector: vectors[i] })),
-  };
-  await writeJson(INDEX_FILE, cache);
-  return getIndexStatus();
-}
-
-export async function ensureFreshIndex(): Promise<StoredIndex> {
-  const status = await getIndexStatus();
-  if (status.stale) await buildIndex();
-  const index = await loadIndex();
-  if (!index) throw new Error("No se pudo construir el índice");
-  return index;
-}
-
-function level(score: number): MatchLevel {
-  if (score >= STRONG) return "fuerte";
-  if (score >= PARTIAL) return "parcial";
-  return "débil";
-}
-
-/** Bonus léxico: fracción de términos de la consulta que aparecen literalmente en el chunk. */
-function lexical(query: string, text: string): number {
-  const terms = normalize(query)
-    .split(/[^a-z0-9+#.]+/)
-    .filter((t) => t.length >= 3);
-  if (terms.length === 0) return 0;
-  const haystack = normalize(text);
-  return terms.filter((t) => haystack.includes(t)).length / terms.length;
-}
-
-function normalize(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+interface ProfileFile {
+  path: string;
+  hash: string;
+  mtime: Date;
+  chunks: Chunk[];
 }
 
 /**
- * Recupera la evidencia del perfil para una vacante: por cada requisito busca los chunks
- * más parecidos (búsqueda híbrida: embeddings + coincidencia literal) y arma el contexto.
+ * Índice RAG del perfil sobre `profile_chunks` (pgvector, D2). Los `.md` del perfil siguen
+ * siendo la fuente; la ingesta es incremental por hash de archivo y por `embed_model`.
  */
-export async function retrieveForVacancy(vacancy: Vacancy): Promise<MatchReport> {
-  const index = await ensureFreshIndex();
+export function createRagIndex(deps: RagDeps) {
+  const repo = createProfileChunksRepository(deps.db);
 
-  const queries: { text: string; kind: "must" | "nice" | "other" }[] = [
-    ...vacancy.mustHave.map((text) => ({ text, kind: "must" as const })),
-    ...vacancy.niceToHave.map((text) => ({ text, kind: "nice" as const })),
-    ...vacancy.responsibilities.map((text) => ({ text, kind: "other" as const })),
-    { text: `${vacancy.title}. ${vacancy.summary}`, kind: "other" },
-  ];
-  const qVectors = await embed(
-    queries.map((q) => q.text),
-    "query",
-  );
-
-  const best = new Map<string, number>();
-  const requirements: RequirementMatch[] = [];
-
-  queries.forEach((q, qi) => {
-    const scored = index.chunks
-      .map((c) => {
-        const sem = cosine(qVectors[qi], c.vector);
-        const lex = lexical(q.text, `${c.heading} ${c.text}`);
-        return { c, score: sem + 0.06 * lex };
-      })
-      .sort((a, b) => b.score - a.score);
-
-    for (const { c, score } of scored.slice(0, TOP_PER_QUERY)) {
-      best.set(c.id, Math.max(best.get(c.id) ?? 0, score));
-    }
-
-    if (q.kind !== "other") {
-      const top = scored[0];
-      const lvl = top ? level(top.score) : "débil";
-      requirements.push({
-        requirement: q.text,
-        kind: q.kind,
-        score: top ? round(top.score) : 0,
-        level: lvl,
-        evidence: top && lvl !== "débil" ? { file: top.c.file, heading: top.c.heading } : null,
-      });
-    }
-  });
-
-  const byId = new Map(index.chunks.map((c) => [c.id, c]));
-  const selected: RetrievedChunk[] = [...best.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, MAX_CONTEXT_CHUNKS)
-    .map(([id, score]) => toRetrieved(byId.get(id) as StoredChunk, score));
-
-  for (const c of index.chunks) {
-    if (c.file.startsWith(ALWAYS_PREFIX) && !selected.some((s) => s.id === c.id)) {
-      selected.unshift(toRetrieved(c, 1));
-    }
+  async function scan(): Promise<ProfileFile[]> {
+    const names = await listFiles(deps.profileDir, ".md");
+    return Promise.all(
+      names.map(async (name) => {
+        const full = path.join(deps.profileDir, name);
+        const content = await readFile(full, "utf8");
+        return {
+          path: name,
+          hash: createHash("sha256").update(content).digest("hex"),
+          mtime: new Date(await mtime(full)),
+          chunks: chunkMarkdown(name, content),
+        };
+      }),
+    );
   }
 
-  const must = requirements.filter((r) => r.kind === "must");
-  const weight = { fuerte: 1, parcial: 0.5, débil: 0 } as const;
-  const coverage = must.length
-    ? must.reduce((acc, r) => acc + weight[r.level], 0) / must.length
-    : 1;
+  /** Solo los archivos con algún fragmento tienen filas; uno vacío no deja el índice desactualizado. */
+  const indexable = (files: ProfileFile[]) => files.filter((f) => f.chunks.length > 0);
 
-  return { vacancyId: vacancy.id, coverage: round(coverage), requirements, chunks: selected };
+  async function status(files: ProfileFile[]): Promise<IndexStatus> {
+    const current = new Map(indexable(files).map((f) => [f.path, f.hash]));
+    const [stored, { chunks, builtAt }] = await Promise.all([repo.sources(), repo.summary()]);
+    return {
+      builtAt: builtAt?.toISOString() ?? null,
+      files: files.length,
+      chunks,
+      stale: isStale(current, stored, deps.model),
+      model: deps.model,
+    };
+  }
+
+  async function getIndexStatus(): Promise<IndexStatus> {
+    return status(await scan());
+  }
+
+  async function buildIndex(): Promise<IndexStatus> {
+    const files = await scan();
+    const wanted = indexable(files);
+    const stored = await repo.sources();
+    // Un archivo está al día si todas sus filas tienen su hash actual y el modelo actual.
+    const outdated = new Set(stored.filter((s) => s.model !== deps.model).map((s) => s.path));
+    const fresh = new Set(
+      stored.filter((s) => !outdated.has(s.path)).map((s) => `${s.path}\0${s.hash}`),
+    );
+    const changed = wanted.filter((f) => !fresh.has(`${f.path}\0${f.hash}`));
+    const keep = new Set(wanted.map((f) => f.path));
+    const removed = [...new Set(stored.map((s) => s.path))].filter((p) => !keep.has(p));
+
+    if (changed.length > 0 || removed.length > 0) {
+      const all = changed.flatMap((f) => f.chunks);
+      const vectors =
+        all.length > 0
+          ? await deps.embed(
+              all.map((c) => `${c.heading}\n${c.text}`),
+              "passage",
+            )
+          : [];
+      let i = 0;
+      const withVectors: FileChunks[] = changed.map((f) => ({
+        ...f,
+        chunks: f.chunks.map((c) => ({ ...c, vector: vectors[i++] })),
+      }));
+      await repo.replace(withVectors, removed, deps.model);
+    }
+    return status(files);
+  }
+
+  async function ensureFreshIndex(): Promise<IndexStatus> {
+    const current = await getIndexStatus();
+    return current.stale ? buildIndex() : current;
+  }
+
+  /**
+   * Recupera la evidencia del perfil para una vacante: por cada requisito busca en pgvector
+   * los fragmentos más parecidos, suma el bonus léxico y arma el contexto.
+   */
+  async function retrieveForVacancy(vacancy: Vacancy): Promise<MatchReport> {
+    await ensureFreshIndex();
+    const queries = vacancyQueries(vacancy);
+    const qVectors = await deps.embed(
+      queries.map((q) => q.text),
+      "query",
+    );
+    const ranked = await Promise.all(
+      queries.map(async (q, qi) =>
+        rankChunks(q.text, await repo.similar(qVectors[qi], deps.model)),
+      ),
+    );
+    return buildMatchReport(vacancy.id, queries, ranked, await repo.always(deps.model));
+  }
+
+  return { getIndexStatus, buildIndex, ensureFreshIndex, retrieveForVacancy };
 }
 
-function toRetrieved(c: StoredChunk, score: number): RetrievedChunk {
-  return { id: c.id, file: c.file, heading: c.heading, text: c.text, score: round(score) };
+let defaultIndex: ReturnType<typeof createRagIndex> | undefined;
+
+/** Índice de la API: base de `DATABASE_URL`, perfil de `data/profile` y el modelo de `EMBED_MODEL`. */
+function rag() {
+  defaultIndex ??= createRagIndex({
+    db: getDb(),
+    profileDir: PROFILE_DIR,
+    model: EMBED_MODEL,
+    embed,
+  });
+  return defaultIndex;
 }
 
-function round(n: number): number {
-  return Math.round(n * 1000) / 1000;
-}
+export const getIndexStatus = () => rag().getIndexStatus();
+export const buildIndex = () => rag().buildIndex();
+export const ensureFreshIndex = () => rag().ensureFreshIndex();
+export const retrieveForVacancy = (vacancy: Vacancy) => rag().retrieveForVacancy(vacancy);

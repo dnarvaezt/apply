@@ -49,6 +49,7 @@ export default defineConfig({
       // Solo módulos puros (mismo alcance que la mutación, C6); el resto llega con #4/#9.
       include: [
         "apps/api/rag/chunk.ts",
+        "apps/api/rag/match.ts",
         "apps/api/storage.ts",
         "apps/api/fetch-url.ts",
         "apps/api/paths.ts",
