@@ -1,0 +1,77 @@
+import { readdir } from "node:fs/promises";
+import path from "node:path";
+import { expect, test } from "@playwright/test";
+
+const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
+const DATA_DIR = path.resolve(import.meta.dirname, "../node_modules/.tmp/e2e-data");
+
+const VACANCY_TEXT =
+  "Buscamos ingeniera backend senior con TypeScript y PostgreSQL para diseñar servicios, revisar código y operar APIs en producción. Trabajo remoto.";
+
+async function filesIn(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch {
+    return [];
+  }
+}
+
+test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar ambos (Postgres + Anthropic falso)", async ({
+  page,
+  request,
+}) => {
+  page.on("dialog", (dialog) => void dialog.accept());
+
+  // Crear una vacante pegando texto
+  await page.goto("/");
+  await page
+    .getByPlaceholder("Pega aquí la descripción completa de la vacante…")
+    .fill(VACANCY_TEXT);
+  await page.getByRole("button", { name: "Agregar vacante" }).click();
+  await expect(page.getByText("Vacante analizada: Ingeniera Backend E2E")).toBeVisible();
+  await expect(page.getByText("Vacantes (1)")).toBeVisible();
+
+  // Generar un CV
+  await page.getByRole("button", { name: /Generar CV para esta vacante/ }).click();
+  // La primera vez el RAG descarga el modelo de embeddings (~120 MB).
+  await expect(page.getByText("CV generado y guardado")).toBeVisible({ timeout: 180_000 });
+
+  // Editarlo: título y markdown, y comprobar que persiste tras recargar
+  const title = page.getByLabel("Título del CV");
+  await expect(title).toHaveValue("Ingeniera Backend E2E — ACME S.A.");
+  const editor = page.locator("textarea.font-mono");
+  await expect(editor).toHaveValue(/# Ana Pérez/);
+  const marker = `Editado e2e ${Date.now()}`;
+  await editor.fill(`# Ana Pérez\n\n**Ingeniera Backend**\n\n${marker}\n`);
+  await title.fill("CV editado e2e");
+  await page.getByRole("button", { name: "Guardar" }).click();
+  await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("tab", { name: /CVs/ }).click();
+  await expect(page.getByText("CVs generados (1)")).toBeVisible();
+  await page.getByRole("button", { name: /CV editado e2e/ }).click();
+  await expect(page.locator("textarea.font-mono")).toHaveValue(new RegExp(marker));
+
+  // Descargar el PDF (se regenera en la descarga) y comprobar que no queda en disco
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "PDF" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^CV-ana-perez-.+\.pdf$/);
+  const pdfPath = await download.path();
+  const { readFile } = await import("node:fs/promises");
+  expect((await readFile(pdfPath)).subarray(0, 5).toString("latin1")).toBe("%PDF-");
+
+  // Borrar el CV y la vacante
+  await page.getByRole("button", { name: "Eliminar CV" }).click();
+  await expect(page.getByText("Genera uno desde la pestaña Vacantes.")).toBeVisible();
+  await page.getByRole("tab", { name: /Vacantes/ }).click();
+  await page.getByRole("button", { name: "Eliminar vacante" }).click();
+  await expect(page.getByText("Aún no hay vacantes.")).toBeVisible();
+
+  // La API no conserva nada y `data/vacancies` y `data/cvs` nunca recibieron archivos (REQ-001)
+  expect(await (await request.get(`${API}/api/vacancies`)).json()).toEqual([]);
+  expect(await (await request.get(`${API}/api/cvs`)).json()).toEqual([]);
+  expect(await filesIn(path.join(DATA_DIR, "vacancies"))).toEqual([]);
+  expect(await filesIn(path.join(DATA_DIR, "cvs"))).toEqual([]);
+});

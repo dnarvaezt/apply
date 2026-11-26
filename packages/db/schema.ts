@@ -64,6 +64,8 @@ export const platforms = pgTable("platforms", {
 export const companies = pgTable("companies", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: text("name").notNull(),
+  /** Nombre sin mayúsculas, acentos ni puntuación; una sola fila por empresa (REQ-003 de #13). */
+  normalizedName: text("normalized_name").unique(),
   websiteUrl: text("website_url"),
   createdAt: createdAt(),
 });
@@ -76,11 +78,20 @@ export const vacancies = pgTable(
       .notNull()
       .references(() => platforms.id),
     source: text("source").notNull(),
-    sourceUrl: text("source_url").notNull(),
+    /** `null` cuando la vacante se pegó como texto y no tiene URL. */
+    sourceUrl: text("source_url"),
     companyId: integer("company_id").references(() => companies.id),
     title: text("title").notNull(),
+    /** Texto original de la vacante (`rawText` del contrato de la API). */
     description: text("description"),
     location: text("location"),
+    seniority: text("seniority"),
+    language: text("language").notNull().default("es"),
+    summary: text("summary").notNull().default(""),
+    mustHave: jsonb("must_have").$type<string[]>().notNull().default([]),
+    niceToHave: jsonb("nice_to_have").$type<string[]>().notNull().default([]),
+    responsibilities: jsonb("responsibilities").$type<string[]>().notNull().default([]),
+    keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
     postedAt: timestamp("posted_at", { withTimezone: true }),
     postedAtPrecision: postedAtPrecision("posted_at_precision").notNull().default("unknown"),
     posterName: text("poster_name"),
@@ -113,12 +124,13 @@ export const cvs = pgTable(
   "cvs",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    vacancyId: integer("vacancy_id")
-      .notNull()
-      .references(() => vacancies.id),
+    /** `null` si la vacante se borró: el CV sobrevive sin referencia colgante. */
+    vacancyId: integer("vacancy_id").references(() => vacancies.id),
+    title: text("title").notNull().default(""),
     content: text("content").notNull(),
     language: text("language").notNull(),
     createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("cvs_vacancy_id_idx").on(t.vacancyId)],
 );

@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
+
 test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
   page,
   request,
 }) => {
-  const health = await request.get("http://localhost:3101/api/health");
+  const health = await request.get(`${API}/api/health`);
   expect(health.ok()).toBe(true);
 
   await page.goto("/");
@@ -33,7 +35,7 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
 test("POST /api/vacancies con una URL de LinkedIn y sin texto pide pegar el texto", async ({
   request,
 }) => {
-  const res = await request.post("http://localhost:3101/api/vacancies", {
+  const res = await request.post(`${API}/api/vacancies`, {
     data: { url: "https://www.linkedin.com/jobs/view/1" },
   });
   expect(res.status()).toBeGreaterThanOrEqual(400);
