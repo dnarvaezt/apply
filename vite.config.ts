@@ -9,6 +9,6 @@ export default defineConfig({
     alias: { "@": path.resolve(import.meta.dirname, "./src") },
   },
   server: {
-    proxy: { "/api": "http://localhost:3001" },
+    proxy: { "/api": `http://localhost:${process.env.PORT ?? 3001}` },
   },
 });
