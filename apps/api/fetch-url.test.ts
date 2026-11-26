@@ -63,7 +63,7 @@ describe("fetchVacancyText", () => {
     "https://user:pw@example.com/?u=www.linkedin.com",
   ])("no rechaza por host %s", async (url) => {
     const fetchMock = stubFetch(`<p>${LONG}</p>`);
-    expect(await fetchVacancyText(url)).toBe(LONG.trim());
+    expect((await fetchVacancyText(url)).text).toBe(LONG.trim());
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
@@ -82,7 +82,7 @@ describe("fetchVacancyText", () => {
 
   it("extrae el texto plano de la página", async () => {
     stubFetch(`<html><body><p>${LONG}</p></body></html>`);
-    expect(await fetchVacancyText("https://example.com/job")).toBe(LONG.trim());
+    expect((await fetchVacancyText("https://example.com/job")).text).toBe(LONG.trim());
   });
 
   it("prioriza el JSON-LD JobPosting", async () => {
@@ -96,7 +96,7 @@ describe("fetchVacancyText", () => {
     stubFetch(
       `<script type="application/ld+json">${ld}</script><body><p>texto alterno ${LONG}</p></body>`,
     );
-    const text = await fetchVacancyText("https://example.com/job");
+    const { text } = await fetchVacancyText("https://example.com/job");
     expect(text).toBe(`Puesto: Dev Senior\nEmpresa: Acme\nTipo: FULL_TIME\n${LONG.trim()}`);
   });
 
@@ -106,20 +106,22 @@ describe("fetchVacancyText", () => {
       { "@type": "JobPosting", description: LONG },
     ]);
     stubFetch(`<script type='application/ld+json'>${inArray}</script>`);
-    expect(await fetchVacancyText("https://example.com/a")).toBe(`Puesto: \n${LONG.trim()}`);
+    expect((await fetchVacancyText("https://example.com/a")).text).toBe(`Puesto: \n${LONG.trim()}`);
 
     const inGraph = JSON.stringify({
       "@graph": [{ "@type": "JobPosting", title: "T", description: LONG }],
     });
     stubFetch(`<script type="application/ld+json">${inGraph}</script>`);
-    expect(await fetchVacancyText("https://example.com/b")).toBe(`Puesto: T\n${LONG.trim()}`);
+    expect((await fetchVacancyText("https://example.com/b")).text).toBe(
+      `Puesto: T\n${LONG.trim()}`,
+    );
   });
 
   it("ignora JSON-LD inválido o sin JobPosting y usa el HTML", async () => {
     stubFetch(
       `<script type="application/ld+json">{roto</script><script type="application/ld+json">{"@type":"Org"}</script><p>${LONG}</p>`,
     );
-    expect(await fetchVacancyText("https://example.com/c")).toBe(LONG.trim());
+    expect((await fetchVacancyText("https://example.com/c")).text).toBe(LONG.trim());
   });
 
   it("falla si hay poco texto", async () => {
@@ -131,13 +133,62 @@ describe("fetchVacancyText", () => {
 
   it("acepta texto de exactamente 200 caracteres", async () => {
     stubFetch(`<p>${"a".repeat(200)}</p>`);
-    expect(await fetchVacancyText("https://example.com/e")).toHaveLength(200);
+    expect((await fetchVacancyText("https://example.com/e")).text).toHaveLength(200);
   });
 
   it("falla si la página es demasiado grande y acepta el límite exacto", async () => {
     stubFetch(`<p>${"a".repeat(150_001)}</p>`);
     await expect(fetchVacancyText("https://example.com/f")).rejects.toThrow("demasiado grande");
     stubFetch(`<p>${"a".repeat(150_000)}</p>`);
-    expect(await fetchVacancyText("https://example.com/g")).toHaveLength(150_000);
+    expect((await fetchVacancyText("https://example.com/g")).text).toHaveLength(150_000);
+  });
+
+  it("devuelve datePosted y hiringOrganization del JSON-LD (AC-003)", async () => {
+    const ld = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "JobPosting",
+      title: "Dev Senior",
+      datePosted: "2026-03-01",
+      hiringOrganization: { "@type": "Organization", name: "  Acme Corp " },
+      description: `<p>${LONG}</p>`,
+    });
+    stubFetch(`<html><head><script type="application/ld+json">${ld}</script></head></html>`);
+    const page = await fetchVacancyText("https://example.com/job");
+    expect(page.postedAt).toBe("2026-03-01");
+    expect(page.company).toBe("Acme Corp");
+  });
+
+  it("acepta hiringOrganization como texto y omite datePosted que no es texto", async () => {
+    const ld = JSON.stringify({
+      "@type": "JobPosting",
+      datePosted: 20260301,
+      hiringOrganization: "Globex",
+      description: LONG,
+    });
+    stubFetch(`<script type="application/ld+json">${ld}</script>`);
+    const page = await fetchVacancyText("https://example.com/job");
+    expect(page).toMatchObject({ postedAt: null, company: "Globex" });
+  });
+
+  it("sin JSON-LD no hay fecha ni empresa", async () => {
+    stubFetch(`<p>${LONG}</p>`);
+    expect(await fetchVacancyText("https://example.com/job")).toEqual({
+      text: LONG.trim(),
+      postedAt: null,
+      company: null,
+    });
+  });
+
+  it("JobPosting sin fecha ni empresa devuelve null en ambos", async () => {
+    const ld = JSON.stringify({
+      "@type": "JobPosting",
+      hiringOrganization: { name: " " },
+      description: LONG,
+    });
+    stubFetch(`<script type="application/ld+json">${ld}</script>`);
+    expect(await fetchVacancyText("https://example.com/job")).toMatchObject({
+      postedAt: null,
+      company: null,
+    });
   });
 });

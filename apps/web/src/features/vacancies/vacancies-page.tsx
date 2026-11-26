@@ -1,5 +1,5 @@
 import type { CvDoc, MatchReport, Vacancy } from "@apply/shared";
-import { ExternalLink, Loader2, Plus, Sparkles, Square, Trash2 } from "lucide-react";
+import { ExternalLink, Loader2, Plus, Save, Sparkles, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CvPreview } from "@/components/cv-preview";
@@ -15,6 +15,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, generateCv } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { MatchList } from "./match-list";
+import { PosterFields } from "./poster-fields";
+import {
+  describePostedAt,
+  EMPTY_POSTER_FORM,
+  type PosterFormValues,
+  posterFormFrom,
+  toCreateFields,
+  toManualFields,
+} from "./poster-form";
 
 export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => void }) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
@@ -23,6 +32,9 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [adding, setAdding] = useState(false);
+  const [newPoster, setNewPoster] = useState<PosterFormValues>(EMPTY_POSTER_FORM);
+  const [editPoster, setEditPoster] = useState<PosterFormValues>(EMPTY_POSTER_FORM);
+  const [savingPoster, setSavingPoster] = useState(false);
 
   const [match, setMatch] = useState<MatchReport | null>(null);
   const [matching, setMatching] = useState(false);
@@ -33,6 +45,10 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
   const abortRef = useRef<AbortController | null>(null);
 
   const selected = vacancies.find((v) => v.id === selectedId) ?? null;
+
+  useEffect(() => {
+    setEditPoster(selected ? posterFormFrom(selected) : EMPTY_POSTER_FORM);
+  }, [selected]);
 
   useEffect(() => {
     api.vacancies
@@ -59,16 +75,32 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
   async function add() {
     setAdding(true);
     try {
-      const v = await api.vacancies.create(mode === "text" ? { text } : { url });
+      const source = mode === "text" ? { text } : { url };
+      const v = await api.vacancies.create({ ...source, ...toCreateFields(newPoster) });
       setVacancies((prev) => [v, ...prev]);
       setSelectedId(v.id);
       setText("");
       setUrl("");
+      setNewPoster(EMPTY_POSTER_FORM);
       toast.success(`Vacante analizada: ${v.title}`);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function savePoster() {
+    if (!selected) return;
+    setSavingPoster(true);
+    try {
+      const v = await api.vacancies.update(selected.id, toManualFields(editPoster));
+      setVacancies((prev) => prev.map((p) => (p.id === v.id ? v : p)));
+      toast.success("Datos de publicación guardados");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSavingPoster(false);
     }
   }
 
@@ -142,6 +174,14 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
                 </p>
               </TabsContent>
             </Tabs>
+            <details className="mt-3 text-sm">
+              <summary className="cursor-pointer text-muted-foreground">
+                Quién la publicó y cuándo (opcional)
+              </summary>
+              <div className="pt-2">
+                <PosterFields idPrefix="new" values={newPoster} onChange={setNewPoster} />
+              </div>
+            </details>
             <Button
               className="mt-3 w-full"
               onClick={add}
@@ -195,6 +235,7 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
                 {selected.location && <Badge variant="outline">{selected.location}</Badge>}
                 {selected.seniority && <Badge variant="outline">{selected.seniority}</Badge>}
                 <Badge variant="secondary">{selected.language.toUpperCase()}</Badge>
+                <Badge variant="outline">{selected.platform}</Badge>
                 {selected.sourceUrl && (
                   <a
                     href={selected.sourceUrl}
@@ -209,6 +250,29 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <p className="text-sm">{selected.summary}</p>
+
+              <section aria-label="Publicación" className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium">Publicación</span>
+                  <span className="text-muted-foreground">{describePostedAt(selected)}</span>
+                </div>
+                <PosterFields
+                  idPrefix="edit"
+                  values={editPoster}
+                  onChange={setEditPoster}
+                  disabled={savingPoster}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="self-start"
+                  onClick={savePoster}
+                  disabled={savingPoster}
+                >
+                  {savingPoster ? <Loader2 className="animate-spin" /> : <Save />} Guardar
+                  publicación
+                </Button>
+              </section>
 
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between text-sm">

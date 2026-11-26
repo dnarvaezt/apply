@@ -29,6 +29,12 @@ const vacancySchema: z.ZodType<Vacancy> = z.strictObject({
   niceToHave: z.array(z.string()),
   responsibilities: z.array(z.string()),
   keywords: z.array(z.string()),
+  platform: z.string(),
+  posterName: z.string().nullable(),
+  posterTitle: z.string().nullable(),
+  posterProfileUrl: z.string().nullable(),
+  postedAt: z.iso.datetime().nullable(),
+  postedAtPrecision: z.enum(["exact", "relative", "unknown"]),
 });
 const cvMetaShape = {
   id: z.string(),
@@ -48,7 +54,11 @@ const LONG_TEXT = "Buscamos un ingeniero backend con experiencia en TypeScript y
 
 let iso: IsolatedDb;
 let app: Hono;
-const fetchText = vi.fn(async (_url: string) => LONG_TEXT);
+const fetchText = vi.fn(async (_url: string) => ({
+  text: LONG_TEXT,
+  postedAt: null as string | null,
+  company: null as string | null,
+}));
 const extract = vi.fn(async (_text: string) => extracted());
 const renderPdf = vi.fn(async (_md: string, _title: string) => PDF);
 
@@ -94,7 +104,7 @@ const call = (method: string, url: string, body?: unknown) =>
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-async function createVacancy(body: { text?: string; url?: string } = { text: LONG_TEXT }) {
+async function createVacancy(body: Record<string, unknown> = { text: LONG_TEXT }) {
   const res = await call("POST", "/vacancies", body);
   return { res, body: (await res.json()) as Vacancy };
 }
@@ -158,6 +168,129 @@ describe("API de vacantes (AC-003)", () => {
       expect(await res.json()).toEqual({ ok: true });
     }
     expect((await call("GET", `/vacancies/${body.id}`)).status).toBe(404);
+  });
+});
+
+describe("poster, fecha y plataforma de la vacante (#15)", () => {
+  const LINKEDIN_TEXT = `${LONG_TEXT}\nMeet the hiring team\nLaura Gómez · Technical Recruiter\nVer en LinkedIn`;
+
+  it("guarda poster y fecha relativa extraídos, calculada desde la creación (REQ-001/002)", async () => {
+    extract.mockResolvedValueOnce(
+      extracted({
+        posterName: "Laura Gómez",
+        posterTitle: "Technical Recruiter",
+        postedAtText: "hace 3 días",
+      }),
+    );
+    const { body } = await createVacancy({ text: LINKEDIN_TEXT });
+    expect(body).toMatchObject({
+      posterName: "Laura Gómez",
+      posterTitle: "Technical Recruiter",
+      posterProfileUrl: null,
+      postedAtPrecision: "relative",
+    });
+    const days = (Date.parse(body.createdAt) - Date.parse(body.postedAt as string)) / 86_400_000;
+    expect(days).toBe(3);
+  });
+
+  it("sin fecha disponible queda NULL con precisión unknown (REQ-004)", async () => {
+    const { body } = await createVacancy();
+    expect(body).toMatchObject({ postedAt: null, postedAtPrecision: "unknown", posterName: null });
+  });
+
+  it("una vacante pegada con texto de LinkedIn queda con plataforma linkedin (AC-006)", async () => {
+    const { body } = await createVacancy({ text: LINKEDIN_TEXT });
+    expect(body.platform).toBe("linkedin");
+    const [row] = await iso.db.execute(
+      sql`SELECT p.slug FROM vacancies v JOIN platforms p ON p.id = v.platform_id`,
+    );
+    expect(row?.slug).toBe("linkedin");
+  });
+
+  it("otra plataforma o texto sin pistas queda manual (REQ-006)", async () => {
+    const { body } = await createVacancy({ text: LONG_TEXT, url: "https://example.com/j" });
+    expect(body.platform).toBe("manual");
+  });
+
+  it("datePosted y hiringOrganization del JSON-LD alimentan fecha exacta y empresa (REQ-003)", async () => {
+    fetchText.mockResolvedValueOnce({ text: LONG_TEXT, postedAt: "2026-03-01", company: "Globex" });
+    extract.mockResolvedValueOnce(extracted({ postedAtText: "hace 3 días" }));
+    const { body } = await createVacancy({ url: "https://example.com/j" });
+    expect(body).toMatchObject({
+      company: "Globex",
+      postedAt: "2026-03-01T00:00:00.000Z",
+      postedAtPrecision: "exact",
+    });
+  });
+
+  it("los valores manuales al crear reemplazan a los extraídos (AC-004)", async () => {
+    extract.mockResolvedValueOnce(
+      extracted({ posterName: "Extraída", posterTitle: "Recruiter", postedAtText: "hace 3 días" }),
+    );
+    const { body } = await createVacancy({
+      text: LONG_TEXT,
+      posterName: "Manual",
+      posterProfileUrl: "https://www.linkedin.com/in/manual",
+      postedAt: "2026-02-10",
+    });
+    expect(body).toMatchObject({
+      posterName: "Manual",
+      posterTitle: "Recruiter",
+      posterProfileUrl: "https://www.linkedin.com/in/manual",
+      postedAt: "2026-02-10T00:00:00.000Z",
+      postedAtPrecision: "exact",
+    });
+  });
+
+  it("PATCH corrige poster y fecha y persiste (AC-004 / REQ-005)", async () => {
+    extract.mockResolvedValueOnce(
+      extracted({ posterName: "Extraída", posterTitle: "Recruiter", postedAtText: "hace 3 días" }),
+    );
+    const { body: created } = await createVacancy();
+    const res = await call("PATCH", `/vacancies/${created.id}`, {
+      posterName: "Corregida",
+      posterTitle: "",
+      postedAt: "2026-03-05",
+    });
+    expect(res.status).toBe(200);
+    const updated = vacancySchema.parse(await res.json());
+    expect(updated).toMatchObject({
+      posterName: "Corregida",
+      posterTitle: null,
+      postedAt: "2026-03-05T00:00:00.000Z",
+      postedAtPrecision: "exact",
+    });
+    expect(await (await call("GET", `/vacancies/${created.id}`)).json()).toEqual(updated);
+  });
+
+  it("PATCH de una vacante inexistente responde 404", async () => {
+    const res = await call("PATCH", "/vacancies/999", { posterName: "x" });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "Vacante no encontrada" });
+  });
+
+  it.each(["POST", "PATCH"])(
+    "%s rechaza posterProfileUrl javascript: con 400 sin descargar nada (AC-005 / REQ-007)",
+    async (method) => {
+      const { body: created } = await createVacancy();
+      fetchText.mockClear();
+      const url = method === "POST" ? "/vacancies" : `/vacancies/${created.id}`;
+      const res = await call(method, url, {
+        url: "https://example.com/j",
+        posterProfileUrl: "javascript:alert(1)",
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "posterProfileUrl debe ser una URL http o https" });
+      expect(fetchText).not.toHaveBeenCalled();
+      expect((await call("GET", `/vacancies/${created.id}`)).status).toBe(200);
+    },
+  );
+
+  it("400 con fecha manual inválida o cuerpo que no es objeto", async () => {
+    const bad = await call("POST", "/vacancies", { text: LONG_TEXT, postedAt: "ayer" });
+    expect(bad.status).toBe(400);
+    const notJson = await app.request("/api/vacancies", { method: "POST", body: "no json" });
+    expect(notJson.status).toBe(400);
   });
 });
 

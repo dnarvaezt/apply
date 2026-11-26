@@ -12,6 +12,9 @@ export const FAKE_VACANCY = {
   niceToHave: ["Docker"],
   responsibilities: ["Diseñar servicios", "Revisar código"],
   keywords: ["typescript", "postgres"],
+  posterName: "Laura Gómez",
+  posterTitle: "Technical Recruiter",
+  postedAtText: "hace 3 días",
 };
 
 /** CV que "redacta" Claude, en trozos como en un stream real. */

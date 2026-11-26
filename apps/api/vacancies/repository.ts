@@ -4,11 +4,10 @@ import { desc, eq } from "drizzle-orm";
 import { upsertCompany } from "../companies/repository.ts";
 import type { Db } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
+import type { ManualFields } from "./manual-fields.ts";
+import { resolvePostedAt } from "./posted-at.ts";
 
 export type NewVacancy = Omit<Vacancy, "id" | "createdAt">;
-
-/** Plataforma de las vacantes creadas desde la web (texto pegado o URL); la semilla es la migración 0004. */
-const MANUAL_PLATFORM = "manual";
 
 const columns = {
   id: vacancies.id,
@@ -25,6 +24,12 @@ const columns = {
   niceToHave: vacancies.niceToHave,
   responsibilities: vacancies.responsibilities,
   keywords: vacancies.keywords,
+  platform: platforms.slug,
+  posterName: vacancies.posterName,
+  posterTitle: vacancies.posterTitle,
+  posterProfileUrl: vacancies.posterProfileUrl,
+  postedAt: vacancies.postedAt,
+  postedAtPrecision: vacancies.postedAtPrecision,
 };
 
 type Row = {
@@ -47,12 +52,22 @@ function toVacancy(row: Row): Vacancy {
     niceToHave: row.niceToHave as string[],
     responsibilities: row.responsibilities as string[],
     keywords: row.keywords as string[],
+    platform: row.platform as string,
+    posterName: row.posterName,
+    posterTitle: row.posterTitle,
+    posterProfileUrl: row.posterProfileUrl,
+    postedAt: row.postedAt ? row.postedAt.toISOString() : null,
+    postedAtPrecision: row.postedAtPrecision as Vacancy["postedAtPrecision"],
   };
 }
 
 export function createVacanciesRepository(db: Db) {
   const select = () =>
-    db.select(columns).from(vacancies).leftJoin(companies, eq(vacancies.companyId, companies.id));
+    db
+      .select(columns)
+      .from(vacancies)
+      .leftJoin(companies, eq(vacancies.companyId, companies.id))
+      .leftJoin(platforms, eq(vacancies.platformId, platforms.id));
 
   async function get(id: string): Promise<Vacancy | null> {
     const numeric = parseId(id);
@@ -70,13 +85,16 @@ export function createVacanciesRepository(db: Db) {
       return rows.map(toVacancy);
     },
 
-    async create(input: NewVacancy): Promise<Vacancy> {
+    /** `createdAt` es también la referencia de las fechas relativas (REQ-002). */
+    async create(input: NewVacancy, createdAt = new Date()): Promise<Vacancy> {
       const id = await db.transaction(async (tx) => {
         const [platform] = await tx
           .select({ id: platforms.id })
           .from(platforms)
-          .where(eq(platforms.slug, MANUAL_PLATFORM));
-        if (!platform) throw new Error("Falta la plataforma 'manual'; corre `npm run db:migrate`");
+          .where(eq(platforms.slug, input.platform));
+        if (!platform) {
+          throw new Error(`Falta la plataforma '${input.platform}'; corre \`npm run db:migrate\``);
+        }
         const companyId = await upsertCompany(tx, input.company);
         const [row] = await tx
           .insert(vacancies)
@@ -95,6 +113,12 @@ export function createVacanciesRepository(db: Db) {
             niceToHave: input.niceToHave,
             responsibilities: input.responsibilities,
             keywords: input.keywords,
+            posterName: input.posterName,
+            posterTitle: input.posterTitle,
+            posterProfileUrl: input.posterProfileUrl,
+            postedAt: input.postedAt ? new Date(input.postedAt) : null,
+            postedAtPrecision: input.postedAtPrecision,
+            createdAt,
           })
           .returning({ id: vacancies.id });
         if (!row) throw new Error("No se pudo guardar la vacante");
@@ -103,6 +127,23 @@ export function createVacanciesRepository(db: Db) {
       const created = await get(formatId(id));
       if (!created) throw new Error("No se pudo leer la vacante guardada");
       return created;
+    },
+
+    /** Aplica las correcciones manuales (REQ-005); `null` si la vacante no existe. */
+    async update(id: string, fields: ManualFields): Promise<Vacancy | null> {
+      const numeric = parseId(id);
+      if (numeric === null) return null;
+      const { postedAt, ...poster } = fields;
+      const changes: Partial<typeof vacancies.$inferInsert> = { ...poster };
+      if (postedAt !== undefined) {
+        const resolved = resolvePostedAt({ manual: postedAt }, new Date());
+        changes.postedAt = resolved.postedAt;
+        changes.postedAtPrecision = resolved.precision;
+      }
+      if (Object.keys(changes).length > 0) {
+        await db.update(vacancies).set(changes).where(eq(vacancies.id, numeric));
+      }
+      return get(id);
     },
 
     /**

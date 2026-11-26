@@ -13,15 +13,23 @@ export function extracted(overrides: Partial<ExtractedVacancy> = {}): ExtractedV
     niceToHave: ["Docker"],
     responsibilities: ["Diseñar servicios"],
     keywords: ["node", "sql"],
+    posterName: null,
+    posterTitle: null,
+    postedAtText: null,
     ...overrides,
   };
 }
 
 export function newVacancy(overrides: Partial<NewVacancy> = {}): NewVacancy {
+  const { postedAtText: _postedAtText, ...fields } = extracted();
   return {
     sourceUrl: null,
     rawText: "Texto original de la vacante ".repeat(5),
-    ...extracted(),
+    ...fields,
+    platform: "manual",
+    posterProfileUrl: null,
+    postedAt: null,
+    postedAtPrecision: "unknown",
     ...overrides,
   };
 }
