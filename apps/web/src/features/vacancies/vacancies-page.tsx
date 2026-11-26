@@ -1,3 +1,4 @@
+import type { CvDoc, MatchReport, Vacancy } from "@apply/shared";
 import { ExternalLink, Loader2, Plus, Sparkles, Square, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, generateCv } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { CvDoc, MatchReport, Vacancy } from "../../../shared/types.ts";
 import { MatchList } from "./match-list";
 
 export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => void }) {

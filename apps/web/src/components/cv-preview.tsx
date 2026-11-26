@@ -1,6 +1,6 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import "../../shared/cv-theme.css";
+import "@apply/shared/cv-theme.css";
 
 /** Vista previa con el mismo CSS que se usa para el PDF, en proporción A4. */
 export function CvPreview({ markdown }: { markdown: string }) {

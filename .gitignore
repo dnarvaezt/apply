@@ -2,7 +2,15 @@ node_modules
 dist
 *.local
 .env
+.env.*
+!.env.example
 .DS_Store
+
+# Credenciales, tokens y dumps (el repo es público)
+credentials*.json
+token*.json
+*.sql
+*.dump
 
 # Datos personales locales (no se versionan)
 data/*
@@ -19,3 +27,4 @@ coverage/
 
 # Migraciones generadas del esquema de prueba (el modelo real llega con #10)
 packages/db/drizzle/
+.vscode

@@ -1,5 +1,5 @@
+import type { MatchLevel, RequirementMatch } from "@apply/shared";
 import { Badge } from "@/components/ui/badge";
-import type { MatchLevel, RequirementMatch } from "../../../shared/types.ts";
 
 const LEVEL_STYLE: Record<MatchLevel, string> = {
   fuerte: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
