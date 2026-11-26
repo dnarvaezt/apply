@@ -27,3 +27,4 @@ coverage/
 
 # Migraciones generadas del esquema de prueba (el modelo real llega con #10)
 packages/db/drizzle/
+.vscode
