@@ -20,7 +20,8 @@
     "e2e": "playwright test",
     "db:up": "docker compose up -d --wait db",
     "db:down": "docker compose down",
-    "db:generate": "npm run generate -w @apply/db"
+    "db:generate": "npm run generate -w @apply/db",
+    "db:migrate": "npm run migrate -w @apply/db"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",

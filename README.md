@@ -73,6 +73,7 @@ npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
 - `npm run typecheck`: `tsc -b` sobre los cuatro workspaces
 - `npm run db:up` / `npm run db:down`: levanta o detiene Postgres + pgvector (Docker Compose)
 - `npm run db:generate`: `drizzle-kit generate` en `packages/db` (no necesita Postgres)
+- `npm run db:migrate`: aplica las migraciones versionadas de `packages/db/drizzle/` (extensión `vector`, 13 tablas, semilla de `platforms` y `channels`) sobre la base de `DATABASE_URL`; es idempotente
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
 - `npm test`: Vitest (proyectos `api` y `web`)
@@ -87,7 +88,7 @@ npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
 apps/api/        API Hono (@apply/api): storage, rag/ (chunk, embed, index), llm.ts, pdf.ts, fetch-url.ts
 apps/web/        Vite + React + shadcn (@apply/web); src/features: profile, vacancies, cvs
 packages/shared/ @apply/shared: tipos y el CSS del CV (el mismo para la vista previa y el PDF)
-packages/db/     @apply/db: esquema Drizzle mínimo, drizzle.config.ts y cliente (el modelo real llega con #10)
+packages/db/     @apply/db: esquema Drizzle (13 tablas), migraciones versionadas en `drizzle/`, `migrate.ts`, drizzle.config.ts y cliente
 ```
 
 Monorrepo con npm workspaces (`apps/*`, `packages/*`) y un único `package-lock.json`. `data/`, `.cache/models` y `.env` se resuelven siempre en la raíz del repo (`apps/api/paths.ts`), sin importar el cwd.

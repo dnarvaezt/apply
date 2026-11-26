@@ -24,4 +24,4 @@ La caída C3 (compose de test con proyecto y puerto propios) **no se aplicó** p
 ## Límites y riesgos
 
 - Arrancar el contenedor añade unos 5 a 10 s a `npm test` (más la primera descarga de la imagen).
-- Snapshot/restore de Testcontainers (D9) requiere una base distinta de `postgres`; `apply_test` lo cumple, pero aún no se usa porque la prueba actual limpia su propia tabla. Se adoptará cuando #10 aporte el esquema real.
+- Snapshot/restore de Testcontainers (D9) requiere una base distinta de `postgres`; `apply_test` lo cumple, pero aún no se usa porque la prueba actual limpia su propia tabla. Las pruebas del esquema (#10) truncan las tablas no sembradas en cada prueba.
