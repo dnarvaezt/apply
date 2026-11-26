@@ -60,6 +60,7 @@ export default defineConfig({
         "apps/api/vacancies/posted-at.ts",
         "apps/api/vacancies/relative-date.ts",
         "apps/web/src/features/vacancies/poster-form.ts",
+        "apps/api/applications/status.ts",
         "apps/web/src/lib/api.ts",
         "apps/web/src/lib/api/*.ts",
       ],
