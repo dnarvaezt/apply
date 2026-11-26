@@ -1,11 +1,4 @@
-import type {
-  CvDoc,
-  CvMeta,
-  IndexStatus,
-  MatchReport,
-  ProfileFile,
-  Vacancy,
-} from "../../shared/types.ts";
+import type { CvDoc, CvMeta, IndexStatus, MatchReport, ProfileFile, Vacancy } from "@apply/shared";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${url}`, {

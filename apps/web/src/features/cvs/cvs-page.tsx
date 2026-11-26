@@ -1,3 +1,4 @@
+import type { CvDoc, CvMeta } from "@apply/shared";
 import { Copy, FileDown, FileText, Loader2, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, download } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { CvDoc, CvMeta } from "../../../shared/types.ts";
 
 export function CvsPage({ initialId }: { initialId: string | null }) {
   const [list, setList] = useState<CvMeta[]>([]);
