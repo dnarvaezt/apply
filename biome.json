@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!src/components/ui", "!data", "!dist"]
+    "includes": ["**", "!apps/web/src/components/ui", "!data", "!**/dist"]
   },
   "formatter": {
     "enabled": true,
@@ -42,7 +42,7 @@
   },
   "overrides": [
     {
-      "includes": ["shared/cv-theme.css"],
+      "includes": ["packages/shared/cv-theme.css"],
       "linter": {
         "rules": {
           "style": {

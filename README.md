@@ -53,21 +53,25 @@ data/
 
 ## Scripts
 
-- `npm run dev`: API y web con recarga
+- `npm run dev`: API (:3001) y web con recarga (workspaces `@apply/api` y `@apply/web`)
 - `npm run build`: typecheck y build del frontend
-- `npm run typecheck`
+- `npm run typecheck`: `tsc -b` sobre los cuatro workspaces
+- `npm run db:generate`: `drizzle-kit generate` en `packages/db` (no necesita Postgres)
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
 - `npm test`: Vitest (proyectos `api` y `web`)
 - `npm run coverage`: cobertura v8, falla bajo 80% de líneas o ramas
 - `npm run mutation`: Stryker sobre módulos puros, falla bajo 70%
-- `npm run mut:smoke`: canario de mutación sobre `server/rag/chunk.ts`
+- `npm run mut:smoke`: canario de mutación sobre `apps/api/rag/chunk.ts`
 - `npm run e2e`: Playwright con API y web levantadas y un directorio de datos temporal (usa Chrome del host o `npx playwright install chromium`)
 
 ## Estructura
 
 ```
-server/        API Hono: storage, rag/ (chunk, embed, index), llm.ts, pdf.ts, fetch-url.ts
-shared/        tipos y el CSS del CV (el mismo para la vista previa y el PDF)
-src/features/  profile, vacancies, cvs
+apps/api/        API Hono (@apply/api): storage, rag/ (chunk, embed, index), llm.ts, pdf.ts, fetch-url.ts
+apps/web/        Vite + React + shadcn (@apply/web); src/features: profile, vacancies, cvs
+packages/shared/ @apply/shared: tipos y el CSS del CV (el mismo para la vista previa y el PDF)
+packages/db/     @apply/db: esquema Drizzle mínimo, drizzle.config.ts y cliente (el modelo real llega con #10)
 ```
+
+Monorrepo con npm workspaces (`apps/*`, `packages/*`) y un único `package-lock.json`. `data/`, `.cache/models` y `.env` se resuelven siempre en la raíz del repo (`apps/api/paths.ts`), sin importar el cwd.

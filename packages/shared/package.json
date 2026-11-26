@@ -1,0 +1,10 @@
+{
+  "name": "@apply/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./types.ts",
+    "./cv-theme.css": "./cv-theme.css"
+  }
+}

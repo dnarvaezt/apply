@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import type { RetrievedChunk, Vacancy } from "@apply/shared";
 import { z } from "zod";
-import type { RetrievedChunk, Vacancy } from "../shared/types.ts";
 
 /**
  * Credenciales: ANTHROPIC_API_KEY (en .env) o un perfil de `ant auth login`.

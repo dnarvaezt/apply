@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-const alias = { "@": path.resolve(import.meta.dirname, "./src") };
+const alias = { "@": path.resolve(import.meta.dirname, "./apps/web/src") };
 
 export default defineConfig({
   test: {
@@ -11,7 +11,7 @@ export default defineConfig({
         test: {
           name: "api",
           environment: "node",
-          include: ["server/**/*.test.ts"],
+          include: ["apps/api/**/*.test.ts"],
           env: { CV_DATA_DIR: path.resolve(import.meta.dirname, "node_modules/.tmp/vitest-data") },
         },
       },
@@ -20,7 +20,7 @@ export default defineConfig({
         test: {
           name: "web",
           environment: "node",
-          include: ["src/**/*.test.{ts,tsx}"],
+          include: ["apps/web/src/**/*.test.{ts,tsx}"],
         },
       },
     ],
@@ -28,10 +28,11 @@ export default defineConfig({
       provider: "v8",
       // Solo módulos puros (mismo alcance que la mutación, C6); el resto llega con #4/#9.
       include: [
-        "server/rag/chunk.ts",
-        "server/storage.ts",
-        "server/fetch-url.ts",
-        "src/lib/api.ts",
+        "apps/api/rag/chunk.ts",
+        "apps/api/storage.ts",
+        "apps/api/fetch-url.ts",
+        "apps/api/paths.ts",
+        "apps/web/src/lib/api.ts",
       ],
       reporter: ["text", "html", "json-summary"],
       reportsDirectory: "reports/coverage",
