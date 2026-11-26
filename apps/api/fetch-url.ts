@@ -1,9 +1,18 @@
 const MAX_TEXT = 150_000;
 
+/** LinkedIn prohíbe la descarga automatizada (User Agreement §8.2): linkedin.com y subdominios. */
+function isLinkedInHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === "linkedin.com" || host.endsWith(".linkedin.com");
+}
+
 /** Descarga una página de vacante y extrae su texto (prioriza JSON-LD JobPosting). */
 export async function fetchVacancyText(url: string): Promise<string> {
   const parsed = new URL(url);
   if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("URL no soportada");
+  if (isLinkedInHost(parsed.hostname)) {
+    throw new Error("LinkedIn no permite la descarga automática. Pega el texto de la vacante.");
+  }
 
   const res = await fetch(parsed, {
     headers: {
