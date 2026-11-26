@@ -35,8 +35,9 @@ La primera indexación descarga el modelo de embeddings `Xenova/multilingual-e5-
 ```
 data/
   profile/*.md          tu información (fuente del RAG)
-  index.json            índice de embeddings (se regenera solo si cambian los archivos)
 ```
+
+El índice de embeddings vive en la tabla `profile_chunks` de Postgres (pgvector): se reindexa solo el archivo cuyo contenido cambió, o todo si cambia `EMBED_MODEL`. Un `data/index.json` de versiones anteriores ya no se usa y puede borrarse.
 
 Las vacantes (con su empresa normalizada en `companies`) y los CVs viven en Postgres, no en `data/`; la API lee `DATABASE_URL`. El PDF de un CV no se guarda: se regenera en cada descarga. `data/` está en `.gitignore`: tu información no se versiona.
 
