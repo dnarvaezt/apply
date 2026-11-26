@@ -29,6 +29,7 @@ export default {
         "apps/web/src/features/vacancies/poster-form.ts",
         "apps/api/ids.ts",
         "apps/api/companies/normalize.ts",
+        "apps/api/applications/status.ts",
         "apps/web/src/lib/api.ts:1-26",
         "apps/web/src/lib/api/http.ts",
         "apps/web/src/lib/api/cvs.ts",

@@ -4,6 +4,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ProfileFile } from "@apply/shared";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { createApplicationsRepository } from "./applications/repository.ts";
+import { applicationRoutes } from "./applications/routes.ts";
 import { createCvsRepository } from "./cvs/repository.ts";
 import { cvRoutes } from "./cvs/routes.ts";
 import { closeDb, getDb } from "./db.ts";
@@ -72,7 +74,7 @@ app.delete("/profile/:name", async (c) => {
 app.get("/index/status", async (c) => c.json(await getIndexStatus()));
 app.post("/index/rebuild", async (c) => c.json(await buildIndex()));
 
-// ───────────── Vacantes y CVs (Postgres) ─────────────
+// ───────────── Vacantes, CVs y postulaciones (Postgres) ─────────────
 
 const vacanciesRepo = createVacanciesRepository(getDb());
 const cvsRepo = createCvsRepository(getDb());
@@ -97,6 +99,7 @@ app.route(
     renderPdf: markdownToPdf,
   }),
 );
+app.route("/", applicationRoutes({ repo: createApplicationsRepository(getDb()) }));
 
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, () => {

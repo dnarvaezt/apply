@@ -30,6 +30,12 @@ export default defineConfig({
     launchOptions: hostChrome ? { executablePath: hostChrome } : {},
     trace: "retain-on-failure",
   },
+  // Las postulaciones no se pueden borrar (eventos append-only) y retienen su vacante, así que su
+  // spec corre después de los que esperan la base vacía (AC-006 de vacancies-cvs).
+  projects: [
+    { name: "ui", testIgnore: /applications\.spec\.ts/ },
+    { name: "applications", testMatch: /applications\.spec\.ts/, dependencies: ["ui"] },
+  ],
   webServer: [
     {
       // Postgres efímero + Anthropic falso + API real (ver e2e/support/stack.ts).
