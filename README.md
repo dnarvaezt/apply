@@ -1,6 +1,6 @@
 # Apply
 
-Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local: los datos son archivos en `./data` (Postgres + pgvector en Docker llega con la épica de base de datos).
+Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local: tu perfil son archivos en `./data`; las vacantes y los CVs se guardan en Postgres (Docker).
 
 **Stack:** TypeScript · React 19 · Vite · Tailwind v4 · shadcn/ui · Biome · Hono (API local) · Claude API · embeddings locales con Transformers.js · Chrome (puppeteer-core) para el PDF.
 
@@ -14,7 +14,8 @@ Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu inf
 
 ```bash
 npm install
-cp .env.example .env   # y pon tu ANTHROPIC_API_KEY
+cp .env.example .env   # ANTHROPIC_API_KEY, POSTGRES_PASSWORD y DATABASE_URL
+npm run db:up && npm run db:migrate   # Postgres de desarrollo (base `apply`)
 npm run dev            # API en :3001 y web en http://localhost:5173
 ```
 
@@ -35,11 +36,9 @@ La primera indexación descarga el modelo de embeddings `Xenova/multilingual-e5-
 data/
   profile/*.md          tu información (fuente del RAG)
   index.json            índice de embeddings (se regenera solo si cambian los archivos)
-  vacancies/<id>.json   vacantes analizadas
-  cvs/<id>.md|.json|.pdf  CVs generados, metadatos y último PDF
 ```
 
-`data/` está en `.gitignore`: tu información no se versiona.
+Las vacantes (con su empresa normalizada en `companies`) y los CVs viven en Postgres, no en `data/`; la API lee `DATABASE_URL`. El PDF de un CV no se guarda: se regenera en cada descarga. `data/` está en `.gitignore`: tu información no se versiona.
 
 ## Variables de entorno
 
@@ -47,6 +46,7 @@ data/
 | ------------------- | ------------------------------ | ------------------------------ |
 | `ANTHROPIC_API_KEY` | —                              | Requerida                      |
 | `CLAUDE_MODEL`      | `claude-opus-5-5`              | Modelo para extraer y redactar |
+| `DATABASE_URL`      | —                              | Postgres de la API (requerida) |
 | `EMBED_MODEL`       | `Xenova/multilingual-e5-small` | Modelo de embeddings local     |
 | `CHROME_PATH`       | autodetección                  | Ejecutable de Chrome/Chromium  |
 | `PORT`              | `3001`                         | Puerto de la API               |
@@ -76,18 +76,18 @@ npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
 - `npm run db:migrate`: aplica las migraciones versionadas de `packages/db/drizzle/` (extensión `vector`, 13 tablas, semilla de `platforms` y `channels`) sobre la base de `DATABASE_URL`; es idempotente
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
-- `npm test`: Vitest (proyectos `api` y `web`)
+- `npm test`: Vitest (proyectos `api`, `web`, `db` y `db-integration`; los de integración levantan Postgres efímero con Docker)
 - `npm run coverage`: cobertura v8, falla bajo 80% de líneas o ramas
 - `npm run mutation`: Stryker sobre módulos puros, falla bajo 70%
 - `npm run mut:smoke`: canario de mutación sobre `apps/api/rag/chunk.ts`
-- `npm run e2e`: Playwright con API y web levantadas y un directorio de datos temporal (usa Chrome del host o `npx playwright install chromium`)
+- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), Anthropic falso en la frontera HTTP (`e2e/support/fake-anthropic.ts`, vía `ANTHROPIC_BASE_URL`) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); el Anthropic falso usa `E2E_API_PORT + 1000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
 
 ## Estructura
 
 ```
-apps/api/        API Hono (@apply/api): storage, rag/ (chunk, embed, index), llm.ts, pdf.ts, fetch-url.ts
+apps/api/        API Hono (@apply/api): index.ts monta las rutas; por entidad: vacancies/ y cvs/ (routes + repository), companies/; db.ts (cliente), storage.ts, rag/, llm.ts, pdf.ts, fetch-url.ts
 apps/web/        Vite + React + shadcn (@apply/web); src/features: profile, vacancies, cvs
-packages/shared/ @apply/shared: tipos y el CSS del CV (el mismo para la vista previa y el PDF)
+packages/shared/ @apply/shared: tipos por entidad (vacancy.ts, cv.ts, types.ts) reexportados desde index.ts, y el CSS del CV (el mismo para la vista previa y el PDF)
 packages/db/     @apply/db: esquema Drizzle (13 tablas), migraciones versionadas en `drizzle/`, `migrate.ts`, drizzle.config.ts y cliente
 ```
 

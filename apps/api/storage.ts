@@ -5,14 +5,10 @@ import { PROFILE_TEMPLATES } from "./templates.ts";
 
 export const DATA_DIR = resolveDataDir(process.env.CV_DATA_DIR);
 export const PROFILE_DIR = path.join(DATA_DIR, "profile");
-export const VACANCIES_DIR = path.join(DATA_DIR, "vacancies");
-export const CVS_DIR = path.join(DATA_DIR, "cvs");
 export const INDEX_FILE = path.join(DATA_DIR, "index.json");
 
 export async function ensureDataDirs(): Promise<void> {
-  for (const dir of [PROFILE_DIR, VACANCIES_DIR, CVS_DIR]) {
-    await mkdir(dir, { recursive: true });
-  }
+  await mkdir(PROFILE_DIR, { recursive: true });
   const existing = await listFiles(PROFILE_DIR, ".md");
   if (existing.length === 0) {
     for (const [name, content] of Object.entries(PROFILE_TEMPLATES)) {

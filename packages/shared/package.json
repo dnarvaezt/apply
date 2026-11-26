@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    ".": "./types.ts",
+    ".": "./index.ts",
     "./cv-theme.css": "./cv-theme.css"
   }
 }

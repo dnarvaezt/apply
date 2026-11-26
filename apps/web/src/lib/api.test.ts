@@ -63,6 +63,25 @@ describe("api", () => {
     expect(calls[2][1].body).toBe(JSON.stringify({ markdown: "md", title: "Título" }));
     expect(api.cvs.pdfUrl("c1")).toBe("/api/cvs/c1/pdf");
   });
+
+  it("arma las rutas de lectura de perfil, índice, vacantes y CVs", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    await api.profile.remove("mi cv.md");
+    await api.index.status();
+    await api.vacancies.list();
+    await api.vacancies.match("v1");
+    await api.cvs.list();
+    await api.cvs.get("c1");
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
+      "DELETE /api/profile/mi%20cv.md",
+      "GET /api/index/status",
+      "GET /api/vacancies",
+      "GET /api/vacancies/v1/match",
+      "GET /api/cvs",
+      "GET /api/cvs/c1",
+    ]);
+  });
 });
 
 function sse(...events: string[]): Response {

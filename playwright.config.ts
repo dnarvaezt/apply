@@ -1,8 +1,10 @@
 import { existsSync } from "node:fs";
 import { defineConfig } from "@playwright/test";
 
-const API_PORT = 3101;
-const WEB_PORT = 5174;
+// Puertos por entorno para que dos worktrees corran `npm run e2e` a la vez.
+const API_PORT = Number(process.env.E2E_API_PORT ?? 3101);
+const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 5174);
+const LLM_PORT = API_PORT + 1000; // Anthropic falso
 const E2E_DATA_DIR = "node_modules/.tmp/e2e-data";
 
 // Chrome/Chromium del host (misma idea que CHROME_CANDIDATES de apps/api/pdf.ts);
@@ -22,6 +24,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { outputFolder: "reports/playwright/html", open: "never" }]],
   fullyParallel: false,
   workers: 1,
+  timeout: 240_000, // la primera generación indexa el perfil y descarga el modelo de embeddings
   use: {
     baseURL: `http://localhost:${WEB_PORT}`,
     launchOptions: hostChrome ? { executablePath: hostChrome } : {},
@@ -29,17 +32,18 @@ export default defineConfig({
   },
   webServer: [
     {
-      // API con un directorio de datos temporal: nunca lee ni escribe `data/` del usuario.
-      // Sin ANTHROPIC_API_KEY: el flujo de humo no llama a Anthropic.
-      command: `rm -rf ${E2E_DATA_DIR} && npm run start -w @apply/api`,
+      // Postgres efímero + Anthropic falso + API real (ver e2e/support/stack.ts).
+      // Directorio de datos temporal: nunca lee ni escribe `data/` del usuario.
+      command: `rm -rf ${E2E_DATA_DIR} && npx tsx e2e/support/stack.ts`,
       url: `http://localhost:${API_PORT}/api/health`,
       env: {
         PORT: String(API_PORT),
+        E2E_LLM_PORT: String(LLM_PORT),
         CV_DATA_DIR: E2E_DATA_DIR, // relativo: la api lo ancla a la raíz del repo
-        ANTHROPIC_API_KEY: "e2e-no-llamar",
       },
+      gracefulShutdown: { signal: "SIGTERM", timeout: 30_000 },
       reuseExistingServer: false,
-      timeout: 60_000,
+      timeout: 240_000, // incluye arrancar el contenedor y, la primera vez, bajar el modelo de embeddings
     },
     {
       command: `npm run dev -w @apply/web -- --port ${WEB_PORT} --strictPort`,

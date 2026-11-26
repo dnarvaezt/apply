@@ -9,5 +9,5 @@
     "module": "nodenext",
     "types": []
   },
-  "include": ["types.ts"]
+  "include": ["*.ts"]
 }
