@@ -76,6 +76,77 @@ describe("repositorio de vacantes (AC-001)", () => {
   });
 });
 
+describe("poster, fecha y plataforma (REQ-001..007)", () => {
+  it("guarda y lee poster, fecha con precisión y plataforma", async () => {
+    const input = newVacancy({
+      platform: "linkedin",
+      posterName: "Laura Gómez",
+      posterTitle: "Technical Recruiter",
+      posterProfileUrl: "https://www.linkedin.com/in/laura",
+      postedAt: "2026-03-12T12:00:00.000Z",
+      postedAtPrecision: "relative",
+    });
+    const created = await repo.create(input);
+    const { id: _id, createdAt: _createdAt, ...rest } = created;
+    expect(rest).toEqual(input);
+    const [platform] = await iso.db.execute(
+      sql`SELECT p.slug FROM vacancies v JOIN platforms p ON p.id = v.platform_id`,
+    );
+    expect(platform?.slug).toBe("linkedin");
+  });
+
+  it("usa la fecha de creación indicada", async () => {
+    const createdAt = new Date("2026-03-15T12:00:00.000Z");
+    const created = await repo.create(newVacancy(), createdAt);
+    expect(created.createdAt).toBe(createdAt.toISOString());
+  });
+
+  it("falla si la plataforma no existe en la tabla platforms", async () => {
+    await expect(repo.create(newVacancy({ platform: "inexistente" }))).rejects.toThrow(
+      "Falta la plataforma 'inexistente'",
+    );
+  });
+
+  it("update cambia solo los campos enviados; la fecha manual es exacta", async () => {
+    const created = await repo.create(
+      newVacancy({
+        posterName: "Extraída",
+        posterTitle: "Recruiter",
+        postedAt: "2026-03-12T12:00:00.000Z",
+        postedAtPrecision: "relative",
+      }),
+    );
+    const updated = await repo.update(created.id, {
+      posterName: "Corregida",
+      postedAt: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    expect(updated).toMatchObject({
+      posterName: "Corregida",
+      posterTitle: "Recruiter",
+      postedAt: "2026-03-01T00:00:00.000Z",
+      postedAtPrecision: "exact",
+    });
+    expect(await repo.get(created.id)).toEqual(updated);
+  });
+
+  it("update con postedAt null limpia la fecha a unknown", async () => {
+    const created = await repo.create(
+      newVacancy({ postedAt: "2026-03-01T00:00:00.000Z", postedAtPrecision: "exact" }),
+    );
+    expect(await repo.update(created.id, { postedAt: null })).toMatchObject({
+      postedAt: null,
+      postedAtPrecision: "unknown",
+    });
+  });
+
+  it("update sin campos devuelve la vacante intacta; id inexistente devuelve null", async () => {
+    const created = await repo.create(newVacancy());
+    expect(await repo.update(created.id, {})).toEqual(created);
+    expect(await repo.update("999", { posterName: "x" })).toBeNull();
+    expect(await repo.update("no-es-un-id", { posterName: "x" })).toBeNull();
+  });
+});
+
 describe("empresas normalizadas (AC-002 / REQ-003)", () => {
   it("dos vacantes de 'ACME S.A.' y 'acme sa' comparten una fila en companies", async () => {
     const first = await repo.create(newVacancy({ company: "ACME S.A." }));

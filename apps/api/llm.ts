@@ -25,12 +25,34 @@ const VacancySchema = z.object({
   keywords: z
     .array(z.string())
     .describe("Palabras clave ATS: tecnologías, herramientas, metodologías, certificaciones"),
+  posterName: z
+    .string()
+    .nullable()
+    .describe(
+      "Nombre de la persona que publicó la vacante (p. ej. bajo 'Meet the hiring team' o 'Publicado por'); null si no aparece",
+    ),
+  posterTitle: z
+    .string()
+    .nullable()
+    .describe(
+      "Cargo de quien publicó la vacante (p. ej. 'Technical Recruiter'); null si no aparece",
+    ),
+  postedAtText: z
+    .string()
+    .nullable()
+    .describe(
+      "Fecha de publicación tal como aparece en el texto: relativa ('hace 3 días', '2 weeks ago') o completa en AAAA-MM-DD; null si no aparece",
+    ),
 });
 
 export type ExtractedVacancy = z.infer<typeof VacancySchema>;
 
-export async function extractVacancy(rawText: string): Promise<ExtractedVacancy> {
-  const response = await client.beta.messages.parse({
+/** `api` es la frontera con Anthropic; las pruebas pasan un cliente con `fetch` de fixture. */
+export async function extractVacancy(
+  rawText: string,
+  api: Pick<Anthropic, "beta"> = client,
+): Promise<ExtractedVacancy> {
+  const response = await api.beta.messages.parse({
     model: MODEL,
     max_tokens: 16000,
     betas: BETAS,
@@ -39,7 +61,8 @@ export async function extractVacancy(rawText: string): Promise<ExtractedVacancy>
     system:
       "Extraes información estructurada de ofertas de empleo. Sé fiel al texto: no inventes requisitos. " +
       "Divide requisitos compuestos en elementos atómicos (p. ej. 'React y TypeScript' → dos elementos). " +
-      "Ignora texto irrelevante de la página (menús, cookies, otras ofertas).",
+      "Ignora texto irrelevante de la página (menús, cookies, otras ofertas). " +
+      "Si un dato (quién publicó, su cargo, la fecha de publicación) no aparece, usa null: no lo deduzcas.",
     messages: [{ role: "user", content: `<vacante>\n${rawText}\n</vacante>` }],
   });
   if (response.stop_reason === "refusal") throw new Error("El modelo rechazó procesar la vacante.");

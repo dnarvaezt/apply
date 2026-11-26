@@ -6,8 +6,17 @@ function isLinkedInHost(hostname: string): boolean {
   return host === "linkedin.com" || host.endsWith(".linkedin.com");
 }
 
+/** Página de vacante descargada; `postedAt` y `company` salen del JSON-LD si existe. */
+export interface FetchedVacancy {
+  text: string;
+  /** `datePosted` del JSON-LD `JobPosting`, tal cual (se valida al guardar). */
+  postedAt: string | null;
+  /** `hiringOrganization` del JSON-LD `JobPosting`. */
+  company: string | null;
+}
+
 /** Descarga una página de vacante y extrae su texto (prioriza JSON-LD JobPosting). */
-export async function fetchVacancyText(url: string): Promise<string> {
+export async function fetchVacancyText(url: string): Promise<FetchedVacancy> {
   const parsed = new URL(url);
   if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("URL no soportada");
   if (isLinkedInHost(parsed.hostname)) {
@@ -25,8 +34,8 @@ export async function fetchVacancyText(url: string): Promise<string> {
   if (!res.ok) throw new Error(`La página respondió ${res.status}. Pega el texto manualmente.`);
   const html = await res.text();
 
-  const jobPosting = extractJobPosting(html);
-  const text = jobPosting ?? htmlToText(html);
+  const job = findJobPosting(html);
+  const text = job ? jobPostingText(job) : htmlToText(html);
   if (text.length < 200) {
     throw new Error(
       "No se encontró texto suficiente (¿requiere login?). Pega el texto manualmente.",
@@ -35,10 +44,34 @@ export async function fetchVacancyText(url: string): Promise<string> {
   if (text.length > MAX_TEXT) {
     throw new Error("La página es demasiado grande. Copia y pega solo el texto de la vacante.");
   }
-  return text;
+  return {
+    text,
+    postedAt: typeof job?.datePosted === "string" ? job.datePosted : null,
+    company: job ? organizationName(job.hiringOrganization) : null,
+  };
 }
 
-function extractJobPosting(html: string): string | null {
+type JobPosting = Record<string, unknown>;
+
+/** `hiringOrganization` es un `Organization` o, a veces, solo su nombre. */
+function organizationName(org: unknown): string | null {
+  const name = typeof org === "string" ? org : (org as { name?: unknown } | undefined)?.name;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
+}
+
+function jobPostingText(job: JobPosting): string {
+  const company = organizationName(job.hiringOrganization);
+  return [
+    `Puesto: ${job.title ?? ""}`,
+    company ? `Empresa: ${company}` : "",
+    job.employmentType ? `Tipo: ${job.employmentType}` : "",
+    htmlToText(String(job.description ?? "")),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function findJobPosting(html: string): JobPosting | null {
   const scripts = html.matchAll(
     /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
   );
@@ -50,17 +83,7 @@ function extractJobPosting(html: string): string | null {
         unknown
       >[];
       const job = items.find((i) => i?.["@type"] === "JobPosting");
-      if (job) {
-        const org = job.hiringOrganization as { name?: string } | undefined;
-        return [
-          `Puesto: ${job.title ?? ""}`,
-          org?.name ? `Empresa: ${org.name}` : "",
-          job.employmentType ? `Tipo: ${job.employmentType}` : "",
-          htmlToText(String(job.description ?? "")),
-        ]
-          .filter(Boolean)
-          .join("\n");
-      }
+      if (job) return job;
     } catch {
       // JSON-LD inválido: seguimos con el siguiente
     }

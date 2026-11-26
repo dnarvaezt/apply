@@ -48,6 +48,7 @@ describe("api", () => {
   it("arma los verbos y rutas de vacantes y CVs", async () => {
     const fetchMock = stubFetch(() => jsonResponse({}));
     await api.vacancies.create({ text: "t" });
+    await api.vacancies.update("v1", { posterName: "Ana", postedAt: null });
     await api.vacancies.remove("v1");
     await api.cvs.save("c1", "md", "Título");
     await api.cvs.remove("c1");
@@ -55,12 +56,14 @@ describe("api", () => {
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
     expect(calls.map(([u, i]) => `${i.method} ${u}`)).toEqual([
       "POST /api/vacancies",
+      "PATCH /api/vacancies/v1",
       "DELETE /api/vacancies/v1",
       "PUT /api/cvs/c1",
       "DELETE /api/cvs/c1",
       "POST /api/index/rebuild",
     ]);
-    expect(calls[2][1].body).toBe(JSON.stringify({ markdown: "md", title: "Título" }));
+    expect(calls[1][1].body).toBe(JSON.stringify({ posterName: "Ana", postedAt: null }));
+    expect(calls[3][1].body).toBe(JSON.stringify({ markdown: "md", title: "Título" }));
     expect(api.cvs.pdfUrl("c1")).toBe("/api/cvs/c1/pdf");
   });
 

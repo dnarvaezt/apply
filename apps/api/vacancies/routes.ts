@@ -1,12 +1,16 @@
 import type { MatchReport, Vacancy } from "@apply/shared";
 import { Hono } from "hono";
+import type { FetchedVacancy } from "../fetch-url.ts";
 import type { ExtractedVacancy } from "../llm.ts";
+import { parseManualFields } from "./manual-fields.ts";
+import { detectPlatform } from "./platform.ts";
+import { resolvePostedAt } from "./posted-at.ts";
 import type { VacanciesRepository } from "./repository.ts";
 
 export interface VacancyRoutesDeps {
   repo: VacanciesRepository;
-  /** Frontera externa: descarga el texto de una URL de vacante. */
-  fetchText: (url: string) => Promise<string>;
+  /** Frontera externa: descarga la página de una URL de vacante (texto y JSON-LD). */
+  fetchText: (url: string) => Promise<FetchedVacancy>;
   /** Frontera externa: extrae los campos de la vacante con Claude. */
   extract: (rawText: string) => Promise<ExtractedVacancy>;
   retrieve: (vacancy: Vacancy) => Promise<MatchReport>;
@@ -14,35 +18,82 @@ export interface VacancyRoutesDeps {
 
 const NOT_FOUND = { error: "Vacante no encontrada" };
 
+async function readBody(c: { req: { json: () => Promise<unknown> } }): Promise<unknown> {
+  return c.req.json().catch(() => null);
+}
+
 export function vacancyRoutes({ repo, fetchText, extract, retrieve }: VacancyRoutesDeps) {
-  return new Hono()
-    .get("/vacancies", async (c) => c.json(await repo.list()))
+  return (
+    new Hono()
+      .get("/vacancies", async (c) => c.json(await repo.list()))
 
-    .post("/vacancies", async (c) => {
-      const body = await c.req.json<{ text?: string; url?: string }>();
-      const url = body.url?.trim() || null;
-      let rawText = body.text?.trim() ?? "";
-      if (!rawText && url) rawText = await fetchText(url);
-      if (rawText.length < 80)
-        return c.json({ error: "Pega el texto de la vacante o una URL válida" }, 400);
+      .post("/vacancies", async (c) => {
+        const body = await readBody(c);
+        const manual = parseManualFields(body);
+        if (!manual.ok) return c.json({ error: manual.error }, 400);
+        const { text, url: rawUrl } = body as { text?: unknown; url?: unknown };
 
-      const extracted = await extract(rawText);
-      return c.json(await repo.create({ sourceUrl: url, rawText, ...extracted }));
-    })
+        const url = (typeof rawUrl === "string" && rawUrl.trim()) || null;
+        let rawText = typeof text === "string" ? text.trim() : "";
+        let page: FetchedVacancy | null = null;
+        if (!rawText && url) {
+          page = await fetchText(url);
+          rawText = page.text;
+        }
+        if (rawText.length < 80)
+          return c.json({ error: "Pega el texto de la vacante o una URL válida" }, 400);
 
-    .get("/vacancies/:id", async (c) => {
-      const vacancy = await repo.get(c.req.param("id"));
-      return vacancy ? c.json(vacancy) : c.json(NOT_FOUND, 404);
-    })
+        const createdAt = new Date();
+        const { postedAtText, ...extracted } = await extract(rawText);
+        const posted = resolvePostedAt(
+          {
+            manual: manual.value.postedAt ?? undefined,
+            jsonLd: page?.postedAt,
+            extracted: postedAtText,
+          },
+          createdAt,
+        );
+        const vacancy = await repo.create(
+          {
+            ...extracted,
+            sourceUrl: url,
+            rawText,
+            company: page?.company ?? extracted.company,
+            platform: detectPlatform(url, rawText),
+            // Al crear, un campo manual vacío no borra lo extraído: solo un valor lo reemplaza.
+            posterName: manual.value.posterName ?? extracted.posterName,
+            posterTitle: manual.value.posterTitle ?? extracted.posterTitle,
+            posterProfileUrl: manual.value.posterProfileUrl ?? null,
+            postedAt: posted.postedAt?.toISOString() ?? null,
+            postedAtPrecision: posted.precision,
+          },
+          createdAt,
+        );
+        return c.json(vacancy);
+      })
 
-    .delete("/vacancies/:id", async (c) => {
-      await repo.remove(c.req.param("id"));
-      return c.json({ ok: true });
-    })
+      .get("/vacancies/:id", async (c) => {
+        const vacancy = await repo.get(c.req.param("id"));
+        return vacancy ? c.json(vacancy) : c.json(NOT_FOUND, 404);
+      })
 
-    .get("/vacancies/:id/match", async (c) => {
-      const vacancy = await repo.get(c.req.param("id"));
-      if (!vacancy) return c.json(NOT_FOUND, 404);
-      return c.json(await retrieve(vacancy));
-    });
+      /** Corrige a mano poster y fecha (REQ-005). */
+      .patch("/vacancies/:id", async (c) => {
+        const manual = parseManualFields(await readBody(c));
+        if (!manual.ok) return c.json({ error: manual.error }, 400);
+        const vacancy = await repo.update(c.req.param("id"), manual.value);
+        return vacancy ? c.json(vacancy) : c.json(NOT_FOUND, 404);
+      })
+
+      .delete("/vacancies/:id", async (c) => {
+        await repo.remove(c.req.param("id"));
+        return c.json({ ok: true });
+      })
+
+      .get("/vacancies/:id/match", async (c) => {
+        const vacancy = await repo.get(c.req.param("id"));
+        if (!vacancy) return c.json(NOT_FOUND, 404);
+        return c.json(await retrieve(vacancy));
+      })
+  );
 }
