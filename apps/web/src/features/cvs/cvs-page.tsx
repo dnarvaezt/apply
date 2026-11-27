@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, download } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { CvEmailDraft } from "./cv-email-draft";
 import { CvMatchPanel } from "./cv-match-panel";
 
 export function CvsPage({ initialId }: { initialId: string | null }) {
@@ -198,6 +199,7 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
             </div>
           </div>
           {match?.cvId === cv.id && <CvMatchPanel report={match} />}
+          <CvEmailDraft key={cv.id} cvId={cv.id} />
         </div>
       )}
     </div>

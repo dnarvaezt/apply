@@ -49,11 +49,16 @@ export function createProfileChunksRepository(db: Db) {
     return { chunks: row?.chunks ?? 0, builtAt: row?.builtAt ?? null };
   }
 
-  /** Reemplaza en una transacción las filas de los archivos dados y borra las de `removed`. */
+  /**
+   * Reemplaza en una transacción las filas de los archivos dados y borra las de `removed`.
+   * Un lock de transacción serializa las reconstrucciones simultáneas: la segunda borra lo que
+   * insertó la primera en vez de chocar con `profile_chunks_source_chunk_uq`.
+   */
   async function replace(files: FileChunks[], removed: string[], model: string): Promise<void> {
     const paths = [...removed, ...files.map((f) => f.path)];
     if (paths.length === 0) return;
     await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('profile_chunks'))`);
       await tx.delete(profileChunks).where(inArray(profileChunks.sourcePath, paths));
       const values = files.flatMap((f) =>
         f.chunks.map((c, i) => ({

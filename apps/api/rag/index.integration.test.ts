@@ -127,6 +127,20 @@ describe("índice RAG en pgvector", () => {
     expect(embedCalls).toBe(2);
   });
 
+  it("dos construcciones simultáneas no chocan y dejan una sola copia de cada fragmento", async () => {
+    // La vacante y el CV piden el índice a la vez (E2E de #19): sin serializar, la segunda
+    // transacción insertaba los mismos (source_path, chunk_index) y violaba el índice único.
+    const [a, b] = await Promise.all([rag().buildIndex(), rag().buildIndex()]);
+    expect(a).toMatchObject({ files: 3, chunks: 4, stale: false });
+    expect(b).toMatchObject({ files: 3, chunks: 4, stale: false });
+    expect((await rows()).map((r) => [r.sourcePath, r.chunkIndex])).toEqual([
+      ["00-contacto.md", 0],
+      ["10-experiencia.md", 0],
+      ["10-experiencia.md", 1],
+      ["20-idiomas.md", 0],
+    ]);
+  });
+
   it("borra las filas de un archivo eliminado del perfil", async () => {
     await rag().buildIndex();
     await unlink(path.join(dir, "20-idiomas.md"));

@@ -9,8 +9,10 @@ import { applicationRoutes } from "./applications/routes.ts";
 import { createCvsRepository } from "./cvs/repository.ts";
 import { cvRoutes } from "./cvs/routes.ts";
 import { closeDb, getDb } from "./db.ts";
+import { createEmailDraftsRepository } from "./emails/repository.ts";
+import { emailDraftRoutes } from "./emails/routes.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
-import { cleanMarkdown, extractVacancy, MODEL, streamCv } from "./llm.ts";
+import { cleanMarkdown, draftApplicationEmail, extractVacancy, MODEL, streamCv } from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
 import { createCvMatcher } from "./match-reports/service.ts";
 import { ENV_FILE } from "./paths.ts";
@@ -108,6 +110,15 @@ app.route(
   }),
 );
 app.route("/", applicationRoutes({ repo: createApplicationsRepository(getDb()) }));
+app.route(
+  "/",
+  emailDraftRoutes({
+    repo: createEmailDraftsRepository(getDb()),
+    getCv: (id) => cvsRepo.get(id),
+    getVacancy: (id) => vacanciesRepo.get(id),
+    draft: (input) => draftApplicationEmail(input),
+  }),
+);
 
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, () => {

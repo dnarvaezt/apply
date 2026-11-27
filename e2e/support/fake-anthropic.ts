@@ -17,6 +17,13 @@ export const FAKE_VACANCY = {
   postedAtText: "hace 3 días",
 };
 
+/** Correo de postulación que "redacta" Claude (#19): sin saludo, lo agrega la API. */
+export const FAKE_EMAIL = {
+  subject: "Postulación: Ingeniera Backend E2E",
+  body: "Me interesa el rol de Ingeniera Backend en ACME.\n\nSaludos,\nAna Pérez",
+  language: "es",
+};
+
 /** CV que "redacta" Claude, en trozos como en un stream real. */
 export const FAKE_CV_CHUNKS = [
   "# Ana Pérez\n\n**Ingeniera Backend**\n\n",
@@ -34,7 +41,8 @@ function sse(event: string, data: unknown): string {
 /**
  * Servidor Anthropic falso para el E2E: la API real lo usa vía `ANTHROPIC_BASE_URL`, así que el
  * código de producción no cambia y ninguna prueba toca la API real. `stream: true` devuelve el CV
- * por SSE; el resto devuelve la extracción de la vacante como JSON.
+ * por SSE; una petición con el esquema del correo (`subject`) devuelve el correo, y el resto la
+ * extracción de la vacante como JSON.
  */
 export function startFakeAnthropic(port: number): Promise<Server> {
   const server = createServer((req, res) => {
@@ -45,15 +53,15 @@ export function startFakeAnthropic(port: number): Promise<Server> {
         res.writeHead(req.url === "/health" ? 200 : 404).end();
         return;
       }
-      const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as {
-        stream?: boolean;
-      };
+      const raw = Buffer.concat(chunks).toString("utf8") || "{}";
+      const body = JSON.parse(raw) as { stream?: boolean };
       if (!body.stream) {
+        const output = raw.includes('"subject"') ? FAKE_EMAIL : FAKE_VACANCY;
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
             ...base,
-            content: [{ type: "text", text: JSON.stringify(FAKE_VACANCY) }],
+            content: [{ type: "text", text: JSON.stringify(output) }],
             stop_reason: "end_turn",
             stop_sequence: null,
             usage,

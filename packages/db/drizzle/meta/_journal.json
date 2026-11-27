@@ -50,6 +50,13 @@
       "when": 1795740936231,
       "tag": "0006_match_report_details",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795797121249,
+      "tag": "0007_outbound_email_drafts",
+      "breakpoints": true
     }
   ]
 }

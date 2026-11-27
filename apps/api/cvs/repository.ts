@@ -1,6 +1,6 @@
-import { applications, cvs, matchReports, vacancies } from "@apply/db";
+import { applications, cvs, matchReports, outboundEmails, vacancies } from "@apply/db";
 import type { CvDoc, CvMeta } from "@apply/shared";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
 
@@ -121,13 +121,20 @@ export function createCvsRepository(db: Db) {
       return row ? { ...toMeta(row), markdown: row.markdown } : null;
     },
 
-    /** Borra el CV y sus informes de match; las postulaciones que lo usaban quedan sin CV. Idempotente. */
+    /**
+     * Borra el CV, sus informes de match y sus borradores sin postulación; las postulaciones y
+     * los correos ya ligados a una postulación quedan sin CV. Idempotente.
+     */
     async remove(id: string): Promise<void> {
       const numeric = parseId(id);
       if (numeric === null) return;
       await db.transaction(async (tx) => {
         await tx.delete(matchReports).where(eq(matchReports.cvId, numeric));
         await tx.update(applications).set({ cvId: null }).where(eq(applications.cvId, numeric));
+        await tx
+          .delete(outboundEmails)
+          .where(and(eq(outboundEmails.cvId, numeric), isNull(outboundEmails.applicationId)));
+        await tx.update(outboundEmails).set({ cvId: null }).where(eq(outboundEmails.cvId, numeric));
         await tx.delete(cvs).where(eq(cvs.id, numeric));
       });
     },

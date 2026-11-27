@@ -248,10 +248,12 @@ export const outboundEmails = pgTable(
   "outbound_emails",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-    applicationId: integer("application_id")
-      .notNull()
-      .references(() => applications.id),
-    toAddress: text("to_address").notNull(),
+    /** `null` mientras es borrador: la postulación nace al enviarlo (#21). */
+    applicationId: integer("application_id").references(() => applications.id),
+    /** CV desde el que se redactó el borrador (#19). */
+    cvId: integer("cv_id").references(() => cvs.id),
+    /** `null` si aún no se conoce el destinatario (C7): no se inventa. */
+    toAddress: text("to_address"),
     subject: text("subject").notNull(),
     body: text("body").notNull(),
     language: text("language").notNull(),
@@ -263,9 +265,12 @@ export const outboundEmails = pgTable(
     pdfSha256: text("pdf_sha256"),
     pdf: bytea("pdf"),
     createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
     index("outbound_emails_application_id_idx").on(t.applicationId),
+    index("outbound_emails_cv_id_idx").on(t.cvId),
+    check("outbound_emails_owner", sql`${t.applicationId} IS NOT NULL OR ${t.cvId} IS NOT NULL`),
     check("outbound_emails_pdf_sha256_hex", sql`${t.pdfSha256} ~ '^[0-9a-f]{64}$'`),
   ],
 );
