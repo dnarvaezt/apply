@@ -67,6 +67,7 @@ export default defineConfig({
         "apps/api/import/legacy.ts",
         "apps/api/import/report.ts",
         "apps/api/emails/draft.ts",
+        "apps/api/gmail/*.ts",
         "apps/web/src/lib/api.ts",
         "apps/web/src/lib/api/*.ts",
       ],
