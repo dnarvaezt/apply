@@ -85,7 +85,8 @@ Atajos con `make` (`make help` los lista): `make env` crea `.env` desde `.env.ex
 - `npm run coverage`: cobertura v8, falla bajo 80% de líneas o ramas
 - `npm run mutation`: Stryker sobre módulos puros, falla bajo 70%
 - `npm run mut:smoke`: canario de mutación sobre `apps/api/rag/chunk.ts`
-- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), Anthropic falso en la frontera HTTP (`e2e/support/fake-anthropic.ts`, vía `ANTHROPIC_BASE_URL`) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); el Anthropic falso usa `E2E_API_PORT + 1000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
+- `npm run claude:smoke`: smoke manual opt-in contra el `claude` real (fuera de `npm test` y del e2e); sale con exit 1 si `apiKeySource` no es `none` o falta `structured_output`. La extracción y el correo usan `claude -p` local: `CLAUDE_BIN` (default `claude`), `CLAUDE_MODEL` (default `claude-opus-5-5`) y `CLAUDE_TIMEOUT_MS` (default `600000`); el hijo no recibe ninguna `ANTHROPIC_*`.
+- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), `claude` falso para la vacante y el correo (`apps/api/test/fake-claude.mjs`, vía `CLAUDE_BIN`), Anthropic falso en la frontera HTTP solo para el CV (`e2e/support/fake-anthropic.ts`, vía `ANTHROPIC_BASE_URL`, hasta #54) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); el Anthropic falso usa `E2E_API_PORT + 1000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
 
 ## Estructura
 
