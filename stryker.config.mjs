@@ -51,6 +51,8 @@ export default {
         "apps/api/gmail/token-store.ts",
         "apps/api/gmail/connection.ts",
         "apps/api/gmail/routes.ts",
+        "apps/api/gmail/replies.ts",
+        "apps/web/src/features/applications/reply-sync-notice.tsx",
       ],
   coverageAnalysis: "perTest",
   reporters: ["clear-text", "html", "json"],

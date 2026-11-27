@@ -6,6 +6,7 @@ import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import { z } from "zod";
 import { GMAIL_SCOPES, type GmailConfig } from "./config.ts";
 import { boundPort } from "./loopback.ts";
+import { type GmailMessageMeta, messageMeta } from "./replies.ts";
 import type { StoredTokens, TokenStore } from "./token-store.ts";
 
 const CALLBACK_PATH = "/oauth2callback";
@@ -44,6 +45,50 @@ export interface GmailMessageRef {
 function messageRef(data: { id?: string | null; threadId?: string | null }): GmailMessageRef {
   if (!data.id || !data.threadId) throw new Error("Gmail respondió sin id o threadId");
   return { id: data.id, threadId: data.threadId };
+}
+
+/** Tope de mensajes por búsqueda: la detección lee una página, nunca el buzón entero. */
+const SEARCH_LIMIT = 50;
+
+/** Lectura del buzón para detectar respuestas (#22), dentro de una sesión ya autorizada. */
+export interface GmailReader {
+  /** Cuenta conectada; `null` si Google no la informó. */
+  account: string | null;
+  /** Mensajes del hilo (`threads.get`); vacío si el hilo ya no existe. */
+  thread(threadId: string): Promise<GmailMessageMeta[]>;
+  /** Mensajes que cumplen `q` (`messages.list` + `messages.get`), hasta `SEARCH_LIMIT`. */
+  search(q: string): Promise<GmailMessageMeta[]>;
+}
+
+const isNotFound = (e: unknown) =>
+  z.object({ response: z.object({ status: z.literal(404) }) }).safeParse(e).success;
+
+const metas = (messages: Parameters<typeof messageMeta>[0][]) =>
+  messages.map(messageMeta).filter((m): m is GmailMessageMeta => m !== null);
+
+function readerFor(api: gmail_v1.Gmail, account: string | null): GmailReader {
+  const metadata = { format: "metadata", metadataHeaders: ["From"] };
+  return {
+    account,
+    async thread(threadId) {
+      try {
+        const { data } = await api.users.threads.get({ userId: "me", id: threadId, ...metadata });
+        return metas(data.messages ?? []);
+      } catch (e) {
+        if (isNotFound(e)) return [];
+        throw e;
+      }
+    },
+    async search(q) {
+      const { data } = await api.users.messages.list({ userId: "me", q, maxResults: SEARCH_LIMIT });
+      const found = [];
+      for (const { id } of data.messages ?? []) {
+        if (!id) continue;
+        found.push((await api.users.messages.get({ userId: "me", id, ...metadata })).data);
+      }
+      return metas(found);
+    },
+  };
 }
 
 export interface GmailConnectionDeps {
@@ -182,7 +227,7 @@ export function createGmailConnection({
    * `invalid_grant` deja la cuenta en reauth y falla con `GmailUnavailableError` (OBS-07).
    */
   async function withGmail<T>(
-    fn: (api: gmail_v1.Gmail) => Promise<T>,
+    fn: (api: gmail_v1.Gmail, saved: StoredTokens) => Promise<T>,
     accountOf: (result: T, saved: StoredTokens) => string | null = (_, saved) => saved.email,
   ): Promise<T> {
     const saved = await store.read();
@@ -196,7 +241,7 @@ export function createGmailConnection({
       }
     };
     try {
-      const result = await fn(apiFor(client));
+      const result = await fn(apiFor(client), saved);
       await keep(accountOf(result, saved));
       return result;
     } catch (e) {
@@ -240,11 +285,16 @@ export function createGmailConnection({
       return found ? messageRef(found) : null;
     });
 
+  /** Corre `fn` con un lector del buzón; falla con `GmailUnavailableError` sin cuenta usable. */
+  const read = <T>(fn: (reader: GmailReader) => Promise<T>) =>
+    withGmail((api, saved) => fn(readerFor(api, saved.email)));
+
   return {
     start,
     status,
     send,
     findSent,
+    read,
     close: () => {
       if (loopback) close(loopback);
     },

@@ -46,3 +46,15 @@ export function readGmailConfig(env: NodeJS.ProcessEnv = process.env): GmailConf
     apiRootUrl: env.GMAIL_API_ROOT_URL || undefined,
   };
 }
+
+const DEFAULT_SYNC_MINUTES = 15;
+
+/** Cada cuántos minutos se buscan respuestas (#22, REQ-005); falla al arrancar si es inválido. */
+export function readSyncMinutes(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.GMAIL_SYNC_MINUTES?.trim();
+  if (!raw) return DEFAULT_SYNC_MINUTES;
+  if (!/^[1-9]\d*$/.test(raw)) {
+    throw new Error(`GMAIL_SYNC_MINUTES debe ser un entero positivo de minutos: ${raw}`);
+  }
+  return Number(raw);
+}

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { z } from "zod";
 import { boundPort } from "../gmail/loopback.ts";
 
 /** Cuenta que "conecta" el Google falso; dominio reservado, nunca una cuenta real. */
@@ -16,6 +17,18 @@ export interface FakeSent {
   messageId: string | null;
   id: string;
   threadId: string;
+  /** Milisegundos epoch en que Gmail falso lo aceptó. */
+  internalDate: number;
+}
+
+/** Correo recibido en el buzón falso (respuestas de reclutadores, rebotes). */
+export interface FakeInboxMessage {
+  id: string;
+  threadId: string;
+  from: string;
+  /** Milisegundos epoch, como `internalDate` de Gmail. */
+  internalDate: number;
+  labelIds?: string[];
 }
 
 export interface FakeGoogle {
@@ -33,8 +46,14 @@ export interface FakeGoogle {
   sendMode: SendMode;
   /** Mensajes que Gmail falso "envió", en orden. */
   sent: FakeSent[];
+  /** Correos recibidos que ven `threads.get`, `messages.list` y `messages.get`. */
+  inbox: FakeInboxMessage[];
   /** Consulta `q` de cada `messages.list`. */
   searches: string[];
+  /** Hilo pedido en cada `threads.get`. */
+  threadRequests: string[];
+  /** `threads.get` responde 500: Gmail caído durante la detección. */
+  failReads: boolean;
   /** Se llama justo antes de aceptar un envío: permite mirar qué se persistió antes (AC-004). */
   beforeSend: (() => Promise<void>) | null;
   close: () => Promise<void>;
@@ -51,11 +70,29 @@ async function body(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+const addressOf = (from: string) => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
+
+/** Un mensaje en formato `metadata` con el encabezado From, como lo devuelve Gmail. */
+const metadata = (m: {
+  id: string;
+  threadId: string;
+  from: string;
+  internalDate: number;
+  labelIds?: string[];
+}) => ({
+  id: m.id,
+  threadId: m.threadId,
+  labelIds: m.labelIds ?? ["INBOX"],
+  internalDate: String(m.internalDate),
+  payload: { headers: [{ name: "From", value: m.from }] },
+});
+
 const challengeOf = (verifier: string) => createHash("sha256").update(verifier).digest("base64url");
 
 /**
  * Google falso en la frontera HTTP (D9): consentimiento que aprueba solo y redirige al loopback,
- * endpoint de token que valida PKCE, `users.getProfile`, `messages.send` y `messages.list`.
+ * endpoint de token que valida PKCE, `users.getProfile`, `messages.send`, `messages.list`,
+ * `messages.get` y `threads.get` sobre un buzón en memoria.
  */
 export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
   const pending = new Map<string, { challenge: string; redirectUri: string }>();
@@ -72,7 +109,10 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
     consentRefresh: true,
     sendMode: "ok",
     sent: [],
+    inbox: [],
     searches: [],
+    threadRequests: [],
+    failReads: false,
     beforeSend: null,
     close: async () => {
       server.closeAllConnections();
@@ -146,10 +186,37 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
       messageId: decoded.match(/^Message-ID: (.+?)\r?$/im)?.[1] ?? null,
       id: `fake-msg-${n}`,
       threadId: `fake-thread-${n}`,
+      internalDate: Date.now(),
     };
     fake.sent.push(message);
     if (fake.sendMode === "drop") return void res.destroy();
     return json(res, 200, { id: message.id, threadId: message.threadId, labelIds: ["SENT"] });
+  }
+
+  /** Lo enviado tiene la etiqueta SENT y la cuenta conectada como remitente. */
+  const sentAsMessages = () =>
+    fake.sent.map((m) => ({ ...m, from: FAKE_GMAIL_ADDRESS, labelIds: ["SENT"] }));
+
+  function list(q: string) {
+    const msgid = q.match(/^rfc822msgid:(.+)$/)?.[1];
+    if (msgid) return fake.sent.filter((m) => m.messageId === `<${msgid}>`);
+    const from = q.match(/(?:^|\s)from:(\S+)/)?.[1]?.toLowerCase();
+    const after = Number(q.match(/(?:^|\s)after:(\d+)/)?.[1] ?? 0) * 1000;
+    return fake.inbox.filter((m) => addressOf(m.from) === from && m.internalDate > after);
+  }
+
+  async function reply(req: IncomingMessage, res: ServerResponse) {
+    const { from } = z.object({ from: z.string().min(1) }).parse(JSON.parse(await body(req)));
+    const last = fake.sent.at(-1);
+    if (!last) return json(res, 409, { error: "Aún no hay correos enviados" });
+    const message: FakeInboxMessage = {
+      id: `fake-reply-${fake.inbox.length + 1}`,
+      threadId: last.threadId,
+      from,
+      internalDate: Math.max(Date.now(), last.internalDate + 1),
+    };
+    fake.inbox.push(message);
+    return json(res, 201, message);
   }
 
   const server = createServer((req, res) => {
@@ -168,6 +235,8 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
     }
 
     if (req.method === "POST" && url.pathname === "/token") return void token(req, res);
+    // Solo para el E2E (otro proceso): responde en el hilo del último correo enviado.
+    if (req.method === "POST" && url.pathname === "/__fake/reply") return void reply(req, res);
 
     const bearer = req.headers.authorization?.replace(/^Bearer /, "") ?? "";
     if (!access.has(bearer))
@@ -182,10 +251,26 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
     if (req.method === "GET" && url.pathname === "/gmail/v1/users/me/messages") {
       const q = url.searchParams.get("q") ?? "";
       fake.searches.push(q);
-      const wanted = q.match(/^rfc822msgid:(.+)$/)?.[1];
-      const found = fake.sent.filter((m) => m.messageId === `<${wanted}>`);
-      const messages = found.map(({ id, threadId }) => ({ id, threadId }));
-      return json(res, 200, messages.length ? { messages, resultSizeEstimate: 1 } : {});
+      const messages = list(q).map(({ id, threadId }) => ({ id, threadId }));
+      return json(
+        res,
+        200,
+        messages.length ? { messages, resultSizeEstimate: messages.length } : {},
+      );
+    }
+    const messageId = url.pathname.match(/^\/gmail\/v1\/users\/me\/messages\/([^/]+)$/)?.[1];
+    if (req.method === "GET" && messageId) {
+      const found = fake.inbox.find((m) => m.id === messageId);
+      if (!found) return json(res, 404, { error: { code: 404, message: "Not Found" } });
+      return json(res, 200, metadata(found));
+    }
+    const threadId = url.pathname.match(/^\/gmail\/v1\/users\/me\/threads\/([^/]+)$/)?.[1];
+    if (req.method === "GET" && threadId) {
+      fake.threadRequests.push(threadId);
+      if (fake.failReads) return json(res, 500, { error: { code: 500, message: "Backend Error" } });
+      const messages = [...sentAsMessages(), ...fake.inbox].filter((m) => m.threadId === threadId);
+      if (!messages.length) return json(res, 404, { error: { code: 404, message: "Not Found" } });
+      return json(res, 200, { id: threadId, messages: messages.map(metadata) });
     }
     return json(res, 404, { error: { code: 404, message: `Sin ruta: ${url.pathname}` } });
   });
