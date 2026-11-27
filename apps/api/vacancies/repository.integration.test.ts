@@ -41,6 +41,14 @@ describe("repositorio de vacantes (AC-001)", () => {
     expect(await repo.get(created.id)).toEqual(created);
   });
 
+  it("guarda una vacante creada desde una imagen con source image y sourceUrl null (REQ-004)", async () => {
+    const created = await repo.create(newVacancy({ sourceUrl: null, fromImage: true }));
+    expect(created.sourceUrl).toBeNull();
+    expect(created).not.toHaveProperty("fromImage");
+    const [row] = await iso.db.select().from(vacancies);
+    expect(row?.source).toBe("image");
+  });
+
   it("guarda una vacante pegada como texto con sourceUrl null", async () => {
     const created = await repo.create(newVacancy({ sourceUrl: null }));
     expect(created.sourceUrl).toBeNull();

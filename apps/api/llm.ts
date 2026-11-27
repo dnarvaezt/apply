@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { RetrievedChunk, Vacancy } from "@apply/shared";
 import { z } from "zod";
+import type { ClaudeImage } from "./claude/cli.ts";
 import { runClaudeStructured } from "./claude/runner.ts";
 
 /**
@@ -62,6 +63,32 @@ export function extractVacancy(rawText: string): Promise<ExtractedVacancy> {
     system: VACANCY_SYSTEM,
     prompt: `<vacante>\n${rawText}\n</vacante>`,
     what: "la vacante estructurada",
+  });
+}
+
+const ImageVacancySchema = VacancySchema.extend({
+  transcription: z
+    .string()
+    .describe(
+      "Transcripción fiel y completa del texto visible en la imagen; cadena vacía si no hay texto legible",
+    ),
+});
+
+export type ExtractedImageVacancy = z.infer<typeof ImageVacancySchema>;
+
+const IMAGE_PROMPT =
+  "La imagen adjunta es una captura de una oferta de empleo. Transcribe todo su texto en `transcription` " +
+  "sin resumir ni inventar, y extrae los demás campos de esa transcripción. " +
+  "Si la imagen no contiene texto legible de una vacante, `transcription` es una cadena vacía.";
+
+/** Una sola llamada a la CLI: transcribe la imagen y extrae los campos (REQ-002 de #55). */
+export function extractVacancyFromImage(image: ClaudeImage): Promise<ExtractedImageVacancy> {
+  return runClaudeStructured({
+    schema: ImageVacancySchema,
+    system: VACANCY_SYSTEM,
+    prompt: IMAGE_PROMPT,
+    what: "la vacante estructurada",
+    image,
   });
 }
 
