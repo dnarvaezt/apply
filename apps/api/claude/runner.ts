@@ -8,7 +8,9 @@ import {
   buildClaudeArgs,
   buildClaudeEnv,
   buildClaudeStreamArgs,
+  buildImageInput,
   ClaudeCliError,
+  type ClaudeImage,
   notFoundError,
   parseClaudeResult,
   parseStreamLine,
@@ -70,6 +72,8 @@ export async function runClaudeStructured<T>(input: {
   system: string;
   prompt: string;
   what: string;
+  /** Si viene, la entrada va por `stream-json` con el bloque de imagen y `prompt` como texto. */
+  image?: ClaudeImage;
 }): Promise<T> {
   const config = readClaudeConfig(process.env);
   const stdout = await runClaudeProcess({
@@ -78,8 +82,9 @@ export async function runClaudeStructured<T>(input: {
       model: config.model,
       system: input.system,
       jsonSchema: toClaudeJsonSchema(input.schema),
+      inputFormat: input.image ? "stream-json" : undefined,
     }),
-    stdin: input.prompt,
+    stdin: input.image ? buildImageInput(input.prompt, input.image) : input.prompt,
     timeoutMs: config.timeoutMs,
   });
   return parseClaudeResult(stdout, input.schema, input.what);

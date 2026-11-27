@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, generateCv } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { readImageFile } from "./image-file";
 import { MatchList } from "./match-list";
 import { PosterFields } from "./poster-fields";
 import {
@@ -28,9 +29,10 @@ import {
 export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => void }) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"text" | "url">("text");
+  const [mode, setMode] = useState<"text" | "url" | "image">("text");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [adding, setAdding] = useState(false);
   const [newPoster, setNewPoster] = useState<PosterFormValues>(EMPTY_POSTER_FORM);
   const [editPoster, setEditPoster] = useState<PosterFormValues>(EMPTY_POSTER_FORM);
@@ -75,12 +77,18 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
   async function add() {
     setAdding(true);
     try {
-      const source = mode === "text" ? { text } : { url };
+      const source =
+        mode === "text"
+          ? { text }
+          : mode === "url"
+            ? { url }
+            : { image: await readImageFile(imageFile as File) };
       const v = await api.vacancies.create({ ...source, ...toCreateFields(newPoster) });
       setVacancies((prev) => [v, ...prev]);
       setSelectedId(v.id);
       setText("");
       setUrl("");
+      setImageFile(null);
       setNewPoster(EMPTY_POSTER_FORM);
       toast.success(`Vacante analizada: ${v.title}`);
     } catch (e) {
@@ -148,10 +156,11 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
             <CardDescription>Claude extrae requisitos y palabras clave.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => setMode(v as "text" | "url")}>
+            <Tabs value={mode} onValueChange={(v) => setMode(v as "text" | "url" | "image")}>
               <TabsList className="w-full">
                 <TabsTrigger value="text">Pegar texto</TabsTrigger>
                 <TabsTrigger value="url">Desde URL</TabsTrigger>
+                <TabsTrigger value="image">Desde imagen</TabsTrigger>
               </TabsList>
               <TabsContent value="text" className="pt-2">
                 <Textarea
@@ -173,6 +182,18 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
                   el texto.
                 </p>
               </TabsContent>
+              <TabsContent value="image" className="flex flex-col gap-1 pt-2">
+                <Label htmlFor="vacancy-image">Captura de la vacante</Label>
+                <Input
+                  id="vacancy-image"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => setImageFile(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPEG o WebP de hasta 5 MB. Claude transcribe el texto de la imagen.
+                </p>
+              </TabsContent>
             </Tabs>
             <details className="mt-3 text-sm">
               <summary className="cursor-pointer text-muted-foreground">
@@ -185,7 +206,14 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
             <Button
               className="mt-3 w-full"
               onClick={add}
-              disabled={adding || (mode === "text" ? text.trim().length < 80 : !url.trim())}
+              disabled={
+                adding ||
+                (mode === "text"
+                  ? text.trim().length < 80
+                  : mode === "url"
+                    ? !url.trim()
+                    : !imageFile)
+              }
             >
               {adding ? <Loader2 className="animate-spin" /> : <Plus />}
               {adding ? "Analizando…" : "Agregar vacante"}

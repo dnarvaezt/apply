@@ -26,7 +26,13 @@ import { createSyncRepository } from "./gmail/sync-repository.ts";
 import { gmailSyncRoutes } from "./gmail/sync-routes.ts";
 import { createTokenStore } from "./gmail/token-store.ts";
 import { healthRoutes } from "./health/routes.ts";
-import { cleanMarkdown, draftApplicationEmail, extractVacancy, streamCv } from "./llm.ts";
+import {
+  cleanMarkdown,
+  draftApplicationEmail,
+  extractVacancy,
+  extractVacancyFromImage,
+  streamCv,
+} from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
 import { createCvMatcher } from "./match-reports/service.ts";
 import { createMetricsRepository } from "./metrics/repository.ts";
@@ -101,6 +107,7 @@ app.route(
     repo: vacanciesRepo,
     fetchText: fetchVacancyText,
     extract: extractVacancy,
+    extractFromImage: extractVacancyFromImage,
     retrieve: retrieveForVacancy,
   }),
 );

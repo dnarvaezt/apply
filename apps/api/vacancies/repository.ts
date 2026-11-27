@@ -6,8 +6,10 @@ import type { Db, Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
 import type { ManualFields } from "./manual-fields.ts";
 import { resolvePostedAt } from "./posted-at.ts";
+import { vacancySource } from "./source.ts";
 
-export type NewVacancy = Omit<Vacancy, "id" | "createdAt">;
+/** `fromImage` solo decide la columna `source`: no forma parte del contrato `Vacancy`. */
+export type NewVacancy = Omit<Vacancy, "id" | "createdAt"> & { fromImage?: boolean };
 
 const columns = {
   id: vacancies.id,
@@ -75,7 +77,7 @@ async function toRow(
   }
   return {
     platformId: platform.id,
-    source: input.sourceUrl ? "url" : "text",
+    source: vacancySource(input),
     sourceUrl: input.sourceUrl,
     companyId: await upsertCompany(tx, input.company),
     title: input.title,

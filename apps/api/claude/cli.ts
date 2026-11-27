@@ -28,6 +28,8 @@ export type ClaudeArgsInput = {
   jsonSchema: Record<string, unknown>;
   /** `stream-json` agrega `--verbose` para que la salida traiga el evento `init` (smoke). */
   outputFormat?: "json" | "stream-json";
+  /** `stream-json` permite mandar bloques de imagen por stdin; la CLI exige entonces salida `stream-json`. */
+  inputFormat?: "stream-json";
 };
 
 /** Banderas que aíslan la CLI: sin settings del usuario, sin herramientas, sin MCP y sin sesión. */
@@ -48,10 +50,30 @@ function isolationFlags(model: string, effort: "low" | "high", system: string): 
   ];
 }
 
+export type ClaudeImage = { mediaType: "image/png" | "image/jpeg" | "image/webp"; data: string };
+
+/** Línea `stream-json` de stdin: un mensaje de usuario con la imagen (base64) y el texto. */
+export function buildImageInput(prompt: string, image: ClaudeImage): string {
+  return `${JSON.stringify({
+    type: "user",
+    message: {
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: { type: "base64", media_type: image.mediaType, data: image.data },
+        },
+        { type: "text", text: prompt },
+      ],
+    },
+  })}\n`;
+}
+
 export function buildClaudeArgs(input: ClaudeArgsInput): string[] {
-  const format = input.outputFormat ?? "json";
+  const format = input.inputFormat ? "stream-json" : (input.outputFormat ?? "json");
   return [
     "-p",
+    ...(input.inputFormat ? ["--input-format", input.inputFormat] : []),
     "--output-format",
     format,
     ...(format === "stream-json" ? ["--verbose"] : []),

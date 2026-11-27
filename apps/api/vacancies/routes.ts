@@ -1,7 +1,10 @@
 import type { MatchReport, Vacancy } from "@apply/shared";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import type { ClaudeImage } from "../claude/cli.ts";
 import type { FetchedVacancy } from "../fetch-url.ts";
-import type { ExtractedVacancy } from "../llm.ts";
+import type { ExtractedImageVacancy, ExtractedVacancy } from "../llm.ts";
+import { MAX_BODY_BYTES, parseVacancyImage } from "./image.ts";
 import { parseManualFields } from "./manual-fields.ts";
 import { detectPlatform } from "./platform.ts";
 import { resolvePostedAt } from "./posted-at.ts";
@@ -13,6 +16,8 @@ export interface VacancyRoutesDeps {
   fetchText: (url: string) => Promise<FetchedVacancy>;
   /** Frontera externa: extrae los campos de la vacante con Claude. */
   extract: (rawText: string) => Promise<ExtractedVacancy>;
+  /** Frontera externa: transcribe la imagen y extrae los campos en una sola llamada a Claude. */
+  extractFromImage: (image: ClaudeImage) => Promise<ExtractedImageVacancy>;
   retrieve: (vacancy: Vacancy) => Promise<MatchReport>;
 }
 
@@ -22,55 +27,84 @@ async function readBody(c: { req: { json: () => Promise<unknown> } }): Promise<u
   return c.req.json().catch(() => null);
 }
 
-export function vacancyRoutes({ repo, fetchText, extract, retrieve }: VacancyRoutesDeps) {
+export function vacancyRoutes({
+  repo,
+  fetchText,
+  extract,
+  extractFromImage,
+  retrieve,
+}: VacancyRoutesDeps) {
   return (
     new Hono()
       .get("/vacancies", async (c) => c.json(await repo.list()))
 
-      .post("/vacancies", async (c) => {
-        const body = await readBody(c);
-        const manual = parseManualFields(body);
-        if (!manual.ok) return c.json({ error: manual.error }, 400);
-        const { text, url: rawUrl } = body as { text?: unknown; url?: unknown };
+      .post(
+        "/vacancies",
+        // Solo esta ruta recibe la imagen en base64: el tope no aplica a las demás.
+        bodyLimit({
+          maxSize: MAX_BODY_BYTES,
+          onError: (c) => c.json({ error: "La solicitud es demasiado grande (máximo 8 MB)" }, 413),
+        }),
+        async (c) => {
+          const body = await readBody(c);
+          const manual = parseManualFields(body);
+          if (!manual.ok) return c.json({ error: manual.error }, 400);
+          const {
+            text,
+            url: rawUrl,
+            image: rawImage,
+          } = body as { text?: unknown; url?: unknown; image?: unknown };
 
-        const url = (typeof rawUrl === "string" && rawUrl.trim()) || null;
-        let rawText = typeof text === "string" ? text.trim() : "";
-        let page: FetchedVacancy | null = null;
-        if (!rawText && url) {
-          page = await fetchText(url);
-          rawText = page.text;
-        }
-        if (rawText.length < 80)
-          return c.json({ error: "Pega el texto de la vacante o una URL válida" }, 400);
+          const fromImage = rawImage !== undefined && rawImage !== null;
+          const url = fromImage ? null : (typeof rawUrl === "string" && rawUrl.trim()) || null;
+          let rawText = typeof text === "string" ? text.trim() : "";
+          let page: FetchedVacancy | null = null;
+          let imageFields: ExtractedVacancy | null = null;
+          if (fromImage) {
+            const image = parseVacancyImage(rawImage);
+            if (!image.ok) return c.json({ error: image.error }, image.status);
+            const { transcription, ...fields } = await extractFromImage(image.value);
+            imageFields = fields;
+            rawText = transcription.trim();
+            if (rawText.length < 80)
+              return c.json({ error: "No se pudo leer texto suficiente de la imagen" }, 422);
+          } else if (!rawText && url) {
+            page = await fetchText(url);
+            rawText = page.text;
+          }
+          if (rawText.length < 80)
+            return c.json({ error: "Pega el texto de la vacante o una URL válida" }, 400);
 
-        const createdAt = new Date();
-        const { postedAtText, ...extracted } = await extract(rawText);
-        const posted = resolvePostedAt(
-          {
-            manual: manual.value.postedAt ?? undefined,
-            jsonLd: page?.postedAt,
-            extracted: postedAtText,
-          },
-          createdAt,
-        );
-        const vacancy = await repo.create(
-          {
-            ...extracted,
-            sourceUrl: url,
-            rawText,
-            company: page?.company ?? extracted.company,
-            platform: detectPlatform(url, rawText),
-            // Al crear, un campo manual vacío no borra lo extraído: solo un valor lo reemplaza.
-            posterName: manual.value.posterName ?? extracted.posterName,
-            posterTitle: manual.value.posterTitle ?? extracted.posterTitle,
-            posterProfileUrl: manual.value.posterProfileUrl ?? null,
-            postedAt: posted.postedAt?.toISOString() ?? null,
-            postedAtPrecision: posted.precision,
-          },
-          createdAt,
-        );
-        return c.json(vacancy);
-      })
+          const createdAt = new Date();
+          const { postedAtText, ...extracted } = imageFields ?? (await extract(rawText));
+          const posted = resolvePostedAt(
+            {
+              manual: manual.value.postedAt ?? undefined,
+              jsonLd: page?.postedAt,
+              extracted: postedAtText,
+            },
+            createdAt,
+          );
+          const vacancy = await repo.create(
+            {
+              ...extracted,
+              sourceUrl: url,
+              fromImage,
+              rawText,
+              company: page?.company ?? extracted.company,
+              platform: detectPlatform(url, rawText),
+              // Al crear, un campo manual vacío no borra lo extraído: solo un valor lo reemplaza.
+              posterName: manual.value.posterName ?? extracted.posterName,
+              posterTitle: manual.value.posterTitle ?? extracted.posterTitle,
+              posterProfileUrl: manual.value.posterProfileUrl ?? null,
+              postedAt: posted.postedAt?.toISOString() ?? null,
+              postedAtPrecision: posted.precision,
+            },
+            createdAt,
+          );
+          return c.json(vacancy);
+        },
+      )
 
       .get("/vacancies/:id", async (c) => {
         const vacancy = await repo.get(c.req.param("id"));
