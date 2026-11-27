@@ -87,6 +87,10 @@ const fetchText = vi.fn(async (_url: string) => ({
   company: null as string | null,
 }));
 const extract = vi.fn(async (_text: string) => extracted());
+const extractFromImage = vi.fn(async (_image: unknown) => ({
+  ...extracted(),
+  transcription: LONG_TEXT,
+}));
 const renderPdf = vi.fn(async (_md: string, _title: string) => PDF);
 
 beforeAll(async () => {
@@ -96,7 +100,7 @@ beforeAll(async () => {
   const retrieve = async (v: Vacancy) => ({ ...REPORT, vacancyId: v.id });
   app = new Hono()
     .basePath("/api")
-    .route("/", vacancyRoutes({ repo: vacancies, fetchText, extract, retrieve }))
+    .route("/", vacancyRoutes({ repo: vacancies, fetchText, extract, extractFromImage, retrieve }))
     .route(
       "/",
       cvRoutes({

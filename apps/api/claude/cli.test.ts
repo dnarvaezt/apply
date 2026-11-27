@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   buildClaudeArgs,
   buildClaudeEnv,
+  buildImageInput,
   parseClaudeResult,
   readClaudeConfig,
   smokeVerdict,
@@ -74,6 +75,37 @@ describe("buildClaudeArgs (AC-002)", () => {
     });
     expect(stream[stream.indexOf("--output-format") + 1]).toBe("stream-json");
     expect(stream).toContain("--verbose");
+  });
+});
+
+describe("entrada con imagen (REQ-002)", () => {
+  const base = { model: "m", system: "s", jsonSchema: {} };
+
+  it("inputFormat stream-json agrega --input-format y fuerza la salida stream-json", () => {
+    const args = buildClaudeArgs({ ...base, inputFormat: "stream-json" });
+    expect(args[args.indexOf("--input-format") + 1]).toBe("stream-json");
+    expect(args[args.indexOf("--output-format") + 1]).toBe("stream-json");
+    expect(args).toContain("--verbose");
+  });
+
+  it("sin inputFormat no hay --input-format", () => {
+    expect(buildClaudeArgs(base)).not.toContain("--input-format");
+  });
+
+  it("buildImageInput arma una línea JSON de mensaje de usuario con imagen y texto", () => {
+    const line = buildImageInput("lee esto", { mediaType: "image/png", data: "QUJD" });
+    expect(line.endsWith("\n")).toBe(true);
+    expect(line.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(line)).toEqual({
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "QUJD" } },
+          { type: "text", text: "lee esto" },
+        ],
+      },
+    });
   });
 });
 

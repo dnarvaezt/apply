@@ -1,7 +1,12 @@
 import type { Vacancy } from "@apply/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanMarkdown, draftApplicationEmail, extractVacancy } from "./llm.ts";
-import { type FakeClaudeMode, useFakeClaude } from "./test/fake-claude.ts";
+import {
+  cleanMarkdown,
+  draftApplicationEmail,
+  extractVacancy,
+  extractVacancyFromImage,
+} from "./llm.ts";
+import { FAKE_TRANSCRIPTION, type FakeClaudeMode, useFakeClaude } from "./test/fake-claude.ts";
 import { extracted, newVacancy } from "./test/fixtures.ts";
 
 describe("cleanMarkdown", () => {
@@ -81,6 +86,47 @@ Publicado hace 3 días`;
     const { posterName: _, ...withoutPoster } = extracted();
     useFake({ title: withoutPoster });
     await expect(extractVacancy("texto")).rejects.toThrow(/formato inválido/);
+  });
+});
+
+describe("extractVacancyFromImage (AC-002, REQ-002)", () => {
+  const IMAGE = { mediaType: "image/png" as const, data: "iVBORw0KGgo=" };
+
+  it("una sola invocación: bloque de imagen por stdin y esquema con transcription draft-07", async () => {
+    const f = useFake({ title: extracted() });
+    const result = await extractVacancyFromImage(IMAGE);
+    expect(result).toMatchObject({ title: "Ingeniero Backend", transcription: FAKE_TRANSCRIPTION });
+    const { args, stdin } = f.capture();
+    const event = JSON.parse(stdin) as {
+      type: string;
+      message: { role: string; content: Record<string, unknown>[] };
+    };
+    expect(event.type).toBe("user");
+    expect(event.message.content[0]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: IMAGE.data },
+    });
+    expect(event.message.content[1]).toMatchObject({ type: "text" });
+    expect(args[args.indexOf("--input-format") + 1]).toBe("stream-json");
+    const schema = JSON.parse(args[args.indexOf("--json-schema") + 1] as string) as {
+      $schema: string;
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    expect(schema.$schema).toBe("http://json-schema.org/draft-07/schema#");
+    expect(schema.properties).toHaveProperty("transcription");
+    expect(schema.properties).toHaveProperty("title");
+    expect(schema.required).toContain("transcription");
+  });
+
+  it("devuelve transcription vacía con la imagen en blanco", async () => {
+    useFake({ title: extracted() }, "blank-image");
+    await expect(extractVacancyFromImage(IMAGE)).resolves.toMatchObject({ transcription: "" });
+  });
+
+  it("rechaza una respuesta sin transcription", async () => {
+    useFake({ title: extracted() }, "no-transcription");
+    await expect(extractVacancyFromImage(IMAGE)).rejects.toThrow(/formato inválido/);
   });
 });
 
