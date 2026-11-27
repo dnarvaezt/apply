@@ -14,18 +14,20 @@ import { startFakeAnthropic } from "./fake-anthropic.ts";
  *  - Google falso (OAuth + Gmail) y un `APPLY_CONFIG_DIR` temporal fuera del repo: nunca toca
  *    la cuenta ni los tokens reales del usuario.
  *  - La API real apuntando a ambos.
- * Variables: PORT (API), E2E_LLM_PORT (Anthropic falso), CV_DATA_DIR (perfil temporal).
+ * Variables: PORT (API), E2E_LLM_PORT (Anthropic falso), E2E_GOOGLE_PORT (Google falso),
+ * CV_DATA_DIR (perfil temporal).
  * La URL de la base queda en `E2E_DB_URL_FILE` para los specs que corren comandos contra ella.
  */
 
 const apiPort = process.env.PORT ?? "3101";
 const llmPort = Number(process.env.E2E_LLM_PORT ?? Number(apiPort) + 1000);
+const googlePort = Number(process.env.E2E_GOOGLE_PORT ?? Number(apiPort) + 2000);
 
 const postgres = await startEphemeralPostgres();
 mkdirSync(path.dirname(E2E_DB_URL_FILE), { recursive: true });
 writeFileSync(E2E_DB_URL_FILE, postgres.url, "utf8");
 const llm = await startFakeAnthropic(llmPort);
-const google = await startFakeGoogle();
+const google = await startFakeGoogle(googlePort);
 const gmailConfigDir = path.join(tmpdir(), `apply-e2e-gmail-${apiPort}`);
 rmSync(gmailConfigDir, { recursive: true, force: true });
 

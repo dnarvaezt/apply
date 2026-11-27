@@ -16,9 +16,12 @@ import { emailDraftRoutes } from "./emails/routes.ts";
 import { createEmailSender } from "./emails/send.ts";
 import { emailSendRoutes } from "./emails/send-routes.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
-import { readGmailConfig } from "./gmail/config.ts";
+import { readGmailConfig, readSyncMinutes } from "./gmail/config.ts";
 import { createGmailConnection } from "./gmail/connection.ts";
 import { gmailRoutes } from "./gmail/routes.ts";
+import { createReplySync } from "./gmail/sync.ts";
+import { createSyncRepository } from "./gmail/sync-repository.ts";
+import { gmailSyncRoutes } from "./gmail/sync-routes.ts";
 import { createTokenStore } from "./gmail/token-store.ts";
 import { cleanMarkdown, draftApplicationEmail, extractVacancy, MODEL, streamCv } from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
@@ -151,6 +154,23 @@ app.route(
   }),
 );
 
+// Detección de respuestas (#22): al iniciar y cada N minutos; sin cuenta usable no llama a Gmail.
+const syncMinutes = readSyncMinutes();
+const replySync = createReplySync({
+  gmail,
+  repo: createSyncRepository(getDb()),
+  applications: createApplicationsRepository(getDb()),
+  intervalMinutes: syncMinutes,
+});
+app.route("/", gmailSyncRoutes({ sync: replySync }));
+const syncReplies = () =>
+  replySync.run().catch((e: unknown) => {
+    console.error("Gmail: la detección de respuestas falló:", e instanceof Error ? e.message : e);
+  });
+const syncTimer = setInterval(syncReplies, syncMinutes * 60_000);
+syncTimer.unref();
+void syncReplies();
+
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`API local en http://localhost:${port}/api  ·  modelo: ${MODEL}`);
@@ -158,6 +178,7 @@ serve({ fetch: app.fetch, port }, () => {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {
+    clearInterval(syncTimer);
     gmail?.close();
     await closeBrowser();
     await closeDb();

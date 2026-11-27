@@ -1,23 +1,9 @@
-import type { CvMeta, EmailDraft, GmailConnectStart, GmailStatus, Vacancy } from "@apply/shared";
-import { type APIRequestContext, expect, test } from "@playwright/test";
-
-const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}/api`;
+import type { CvMeta, EmailDraft, Vacancy } from "@apply/shared";
+import { expect, test } from "@playwright/test";
+import { API, ensureGmailConnected } from "./support/gmail.ts";
 
 const VACANCY_TEXT =
   "Buscamos ingeniera backend senior con TypeScript y PostgreSQL para diseñar servicios, revisar código y operar APIs en producción. Trabajo remoto.";
-
-/** El Google falso aprueba solo: seguir la URL de consentimiento deja el token en el loopback. */
-async function ensureGmailConnected(request: APIRequestContext) {
-  const status = (await (await request.get(`${API}/gmail/status`)).json()) as GmailStatus;
-  if (status.state === "connected") return;
-  const start = (await (await request.post(`${API}/gmail/connect`)).json()) as GmailConnectStart;
-  expect((await request.get(start.authUrl)).ok()).toBe(true);
-  await expect
-    .poll(
-      async () => ((await (await request.get(`${API}/gmail/status`)).json()) as GmailStatus).state,
-    )
-    .toBe("connected");
-}
 
 // AC-008 (#21): con Gmail conectado al Google falso, el correo de un CV se revisa en la vista
 // previa, se confirma, se envía y queda la postulación registrada. Crea una postulación, así que

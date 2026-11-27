@@ -147,6 +147,13 @@ describe("api.applications", () => {
     expect(url).toBe("/api/gmail/connect");
     expect(init.method).toBe("POST");
   });
+
+  it("gmail.syncStatus lee el estado de la detección (#22)", async () => {
+    const status = { lastSyncedAt: "2026-11-20T10:00:00.000Z", intervalMinutes: 15 };
+    const fetchMock = stubFetch(jsonResponse(status));
+    expect(await api.gmail.syncStatus()).toEqual(status);
+    expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe("/api/gmail/sync");
+  });
 });
 
 function sse(...events: string[]): Response {

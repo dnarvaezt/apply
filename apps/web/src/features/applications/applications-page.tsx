@@ -7,11 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApplicationDetail } from "./application-detail";
 import { ApplicationsList } from "./applications-list";
 import { NewApplicationForm } from "./new-application-form";
+import { ReplySyncNotice } from "./reply-sync-notice";
 import { usePipeline } from "./use-pipeline";
+import { useReplySyncStatus } from "./use-reply-sync-status";
 
 /** Pipeline de postulaciones: alta, lista filtrable, línea de tiempo y registro manual. */
 export function ApplicationsPage() {
   const { load, selectedId, timeline, reload, select, create, ...actions } = usePipeline();
+  const syncStatus = useReplySyncStatus();
 
   if (load.state === "loading") {
     return (
@@ -78,7 +81,8 @@ export function ApplicationsPage() {
         <CardHeader>
           <CardTitle>Línea de tiempo</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
+          <ReplySyncNotice status={syncStatus} />
           <TimelineBody
             selectedId={selectedId}
             timeline={timeline}

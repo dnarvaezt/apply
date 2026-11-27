@@ -241,7 +241,13 @@ describe("envío (#21)", () => {
     const raw = rawWith("<apply-1@apply.local>");
     expect(await gmail.send(raw)).toEqual({ id: "fake-msg-1", threadId: "fake-thread-1" });
     expect(google.sent).toEqual([
-      { raw, messageId: "<apply-1@apply.local>", id: "fake-msg-1", threadId: "fake-thread-1" },
+      {
+        raw,
+        messageId: "<apply-1@apply.local>",
+        id: "fake-msg-1",
+        threadId: "fake-thread-1",
+        internalDate: expect.any(Number),
+      },
     ]);
   });
 
@@ -297,6 +303,55 @@ describe("envío (#21)", () => {
     await connect();
     google.sendMode = "no_id";
     await expect(gmail.send(rawWith("<apply-1@apply.local>"))).rejects.toThrow(/sin id/);
+  });
+});
+
+describe("lectura del buzón (#22)", () => {
+  it("read entrega la cuenta, los mensajes del hilo y lo que encuentra una búsqueda", async () => {
+    await connect();
+    await gmail.send(rawWith("<apply-1@apply.local>"));
+    google.inbox.push(
+      { id: "r1", threadId: "fake-thread-1", from: "laura@acme.example", internalDate: 2_000 },
+      { id: "r2", threadId: "otro", from: "Laura <laura@acme.example>", internalDate: 3_000 },
+    );
+
+    const read = await gmail.read(async (reader) => ({
+      account: reader.account,
+      thread: await reader.thread("fake-thread-1"),
+      search: await reader.search("from:laura@acme.example after:1"),
+    }));
+
+    expect(read.account).toBe(FAKE_GMAIL_ADDRESS);
+    expect(read.thread.map((m) => [m.id, m.from, m.labelIds])).toEqual([
+      ["fake-msg-1", FAKE_GMAIL_ADDRESS, ["SENT"]],
+      ["r1", "laura@acme.example", ["INBOX"]],
+    ]);
+    expect(read.search).toEqual([
+      { id: "r1", from: "laura@acme.example", date: new Date(2_000), labelIds: ["INBOX"] },
+      { id: "r2", from: "Laura <laura@acme.example>", date: new Date(3_000), labelIds: ["INBOX"] },
+    ]);
+    expect(google.searches).toContain("from:laura@acme.example after:1");
+  });
+
+  it("un hilo que ya no existe no tiene mensajes y una búsqueda sin resultados está vacía", async () => {
+    await connect();
+    const read = await gmail.read(async (reader) => ({
+      thread: await reader.thread("borrado"),
+      search: await reader.search("from:nadie@acme.example after:1"),
+    }));
+    expect(read).toEqual({ thread: [], search: [] });
+  });
+
+  it("un error de Gmail que no es 404 se propaga", async () => {
+    await connect();
+    google.failReads = true;
+    await expect(gmail.read((reader) => reader.thread("fake-thread-1"))).rejects.toMatchObject({
+      response: { status: 500 },
+    });
+  });
+
+  it("sin cuenta conectada read falla con GmailUnavailableError", async () => {
+    await expect(gmail.read(async () => "nunca")).rejects.toBeInstanceOf(GmailUnavailableError);
   });
 });
 

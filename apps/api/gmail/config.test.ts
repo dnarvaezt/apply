@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { APP_ROOT } from "../paths.ts";
-import { GMAIL_SCOPES, readGmailConfig, resolveTokenDir } from "./config.ts";
+import { GMAIL_SCOPES, readGmailConfig, readSyncMinutes, resolveTokenDir } from "./config.ts";
 
 describe("readGmailConfig", () => {
   it("AC-004: sin credenciales de Google devuelve null (Gmail no configurado)", () => {
@@ -71,5 +71,21 @@ describe("resolveTokenDir (AC-005)", () => {
 
   it("rechaza un home dentro del repo", () => {
     expect(() => resolveTokenDir(undefined, APP_ROOT)).toThrow(/dentro del repo/);
+  });
+});
+
+describe("readSyncMinutes", () => {
+  it("REQ-005: sin valor sincroniza cada 15 minutos", () => {
+    expect(readSyncMinutes({})).toBe(15);
+    expect(readSyncMinutes({ GMAIL_SYNC_MINUTES: " " })).toBe(15);
+  });
+
+  it("acepta minutos enteros positivos", () => {
+    expect(readSyncMinutes({ GMAIL_SYNC_MINUTES: "1" })).toBe(1);
+    expect(readSyncMinutes({ GMAIL_SYNC_MINUTES: " 60 " })).toBe(60);
+  });
+
+  it.each(["0", "-5", "1.5", "cada hora", "1e3"])("rechaza %j al arrancar", (value) => {
+    expect(() => readSyncMinutes({ GMAIL_SYNC_MINUTES: value })).toThrow(/GMAIL_SYNC_MINUTES/);
   });
 });
