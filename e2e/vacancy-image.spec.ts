@@ -27,7 +27,16 @@ test("AC-007: sube un PNG en 'Desde imagen' y ve la vacante en la lista", async 
 
   // Limpieza: otros specs esperan la base de vacantes vacía.
   const list = (await (await request.get("/api/vacancies")).json()) as { id: string }[];
+  expect(list).toHaveLength(1);
+
+  // AC-006 (#57): la imagen original se sirve por API con sus bytes y su tipo.
+  const image = await request.get(`/api/vacancies/${list[0]?.id}/image`);
+  expect(image.status()).toBe(200);
+  expect(image.headers()["content-type"]).toBe("image/png");
+  expect(await image.body()).toEqual(PNG);
+
   for (const { id } of list) await request.delete(`/api/vacancies/${id}`);
+  expect((await request.get(`/api/vacancies/${list[0]?.id}/image`)).status()).toBe(404);
 });
 
 test("AC-007: muestra el mensaje del API ante un 422", async ({ page }) => {

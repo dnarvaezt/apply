@@ -1,6 +1,14 @@
 import type { ClaudeImage } from "../claude/cli.ts";
 
-const MEDIA_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp"];
+/** Tipos permitidos y la extensión con la que se guarda cada uno. */
+const EXTENSIONS = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" } as const;
+export const VACANCY_IMAGE_TYPES = Object.keys(EXTENSIONS) as ClaudeImage["mediaType"][];
+const MEDIA_TYPES: readonly string[] = VACANCY_IMAGE_TYPES;
+
+/** Nombre del archivo de una imagen de vacante: `<id numérico>.<ext>`. */
+export function imageFileName(id: number, mediaType: ClaudeImage["mediaType"]): string {
+  return `${id}.${EXTENSIONS[mediaType]}`;
+}
 /** Supuesto declarado, no verificado contra la CLI: el stdin de la CLI admite 10 MB y el base64 pesa 4/3. */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Tope del body de `POST /vacancies`: la imagen en base64 más sus campos. */
