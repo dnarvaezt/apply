@@ -5,7 +5,7 @@ const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 const VACANCY_TEXT =
   "Senior Backend Engineer. Meet the hiring team: Laura Gómez, Technical Recruiter. Publicado hace 3 días. Buscamos TypeScript y PostgreSQL.";
 
-test("AC-007: ver poster y fecha extraídos, corregirlos y verlos tras recargar (Anthropic falso)", async ({
+test("AC-007: ver poster y fecha extraídos, corregirlos y verlos tras recargar (claude falso)", async ({
   page,
   request,
 }) => {

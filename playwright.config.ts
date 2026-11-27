@@ -4,7 +4,6 @@ import { defineConfig } from "@playwright/test";
 // Puertos por entorno para que dos worktrees corran `npm run e2e` a la vez.
 const API_PORT = Number(process.env.E2E_API_PORT ?? 3101);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 5174);
-const LLM_PORT = API_PORT + 1000; // Anthropic falso
 const GOOGLE_PORT = API_PORT + 2000; // Google falso: el spec de #22 le inyecta respuestas
 const E2E_DATA_DIR = "node_modules/.tmp/e2e-data";
 
@@ -48,13 +47,12 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // Postgres efímero + Anthropic falso + API real (ver e2e/support/stack.ts).
+      // Postgres efímero + claude falso + API real (ver e2e/support/stack.ts).
       // Directorio de datos temporal: nunca lee ni escribe `data/` del usuario.
       command: `rm -rf ${E2E_DATA_DIR} && npx tsx e2e/support/stack.ts`,
       url: `http://localhost:${API_PORT}/api/health`,
       env: {
         PORT: String(API_PORT),
-        E2E_LLM_PORT: String(LLM_PORT),
         E2E_GOOGLE_PORT: String(GOOGLE_PORT),
         CV_DATA_DIR: E2E_DATA_DIR, // relativo: la api lo ancla a la raíz del repo
       },

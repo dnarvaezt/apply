@@ -5,30 +5,26 @@ import path from "node:path";
 import { startFakeGoogle } from "../../apps/api/test/fake-google.ts";
 import { startEphemeralPostgres } from "../../packages/db/test/ephemeral-postgres.ts";
 import { E2E_DB_URL_FILE } from "./db-url.ts";
-import { startFakeAnthropic } from "./fake-anthropic.ts";
 import { FAKE_CLAUDE_ENV } from "./fake-claude.ts";
 
 /**
  * Backend del E2E, un solo proceso para que Playwright lo arranque y lo apague:
  *  - Postgres efímero (Testcontainers) con migraciones; nunca la base `apply` de desarrollo.
- *  - `claude` falso (`CLAUDE_BIN`) para extraer la vacante y redactar el correo.
- *  - Anthropic falso en la frontera HTTP (`ANTHROPIC_BASE_URL`), solo para el CV hasta #54.
+ *  - `claude` falso (`CLAUDE_BIN`) para extraer la vacante, redactar el correo y generar el CV en streaming.
  *  - Google falso (OAuth + Gmail) y un `APPLY_CONFIG_DIR` temporal fuera del repo: nunca toca
  *    la cuenta ni los tokens reales del usuario.
- *  - La API real apuntando a ambos.
- * Variables: PORT (API), E2E_LLM_PORT (Anthropic falso), E2E_GOOGLE_PORT (Google falso),
+ *  - La API real apuntando a ellos.
+ * Variables: PORT (API), E2E_GOOGLE_PORT (Google falso),
  * CV_DATA_DIR (perfil temporal).
  * La URL de la base queda en `E2E_DB_URL_FILE` para los specs que corren comandos contra ella.
  */
 
 const apiPort = process.env.PORT ?? "3101";
-const llmPort = Number(process.env.E2E_LLM_PORT ?? Number(apiPort) + 1000);
 const googlePort = Number(process.env.E2E_GOOGLE_PORT ?? Number(apiPort) + 2000);
 
 const postgres = await startEphemeralPostgres();
 mkdirSync(path.dirname(E2E_DB_URL_FILE), { recursive: true });
 writeFileSync(E2E_DB_URL_FILE, postgres.url, "utf8");
-const llm = await startFakeAnthropic(llmPort);
 const google = await startFakeGoogle(googlePort);
 const gmailConfigDir = path.join(tmpdir(), `apply-e2e-gmail-${apiPort}`);
 rmSync(gmailConfigDir, { recursive: true, force: true });
@@ -40,8 +36,6 @@ const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/api"], {
     PORT: apiPort,
     DATABASE_URL: postgres.url,
     ...FAKE_CLAUDE_ENV,
-    ANTHROPIC_BASE_URL: `http://127.0.0.1:${llmPort}`,
-    ANTHROPIC_API_KEY: "e2e-clave-falsa",
     GOOGLE_CLIENT_ID: "e2e-cliente.apps.googleusercontent.com",
     GOOGLE_CLIENT_SECRET: "e2e-secreto-falso",
     GOOGLE_OAUTH_AUTH_URL: google.authUrl,
@@ -56,7 +50,6 @@ async function shutdown(code: number): Promise<never> {
   if (!closing) {
     closing = true;
     api.kill("SIGTERM");
-    llm.close();
     await google.close().catch(() => undefined);
     await postgres.stop().catch(() => undefined);
   }

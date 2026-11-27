@@ -1,18 +1,8 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { RetrievedChunk, Vacancy } from "@apply/shared";
 import { z } from "zod";
-import { runClaudeStructured } from "./claude/runner.ts";
+import { runClaudeStructured, streamClaudeText } from "./claude/runner.ts";
 
-/**
- * Solo `streamCv` usa todavía el SDK (se migra en #54). La extracción de la vacante y el correo
- * van por la CLI `claude -p` (ver claude/runner.ts).
- * Credenciales del SDK: ANTHROPIC_API_KEY (en .env) o un perfil de `ant auth login`.
- * Fallbacks del lado del servidor activados: si el modelo rechaza por política,
- * la API reintenta automáticamente con el modelo de respaldo por defecto.
- */
-const client = new Anthropic();
-export const MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
-const BETAS = ["server-side-fallback-2026-07-01"];
+/** Todo va por la CLI `claude -p` local (ver claude/runner.ts); no hay SDK ni API key. */
 
 const VacancySchema = z.object({
   title: z.string().describe("Título del puesto"),
@@ -127,6 +117,7 @@ export async function* streamCv(
   vacancy: Vacancy,
   chunks: RetrievedChunk[],
   instructions?: string,
+  signal?: AbortSignal,
 ): AsyncGenerator<string> {
   const userContent = [
     `<perfil_candidato>\n${formatContext(chunks)}\n</perfil_candidato>`,
@@ -139,24 +130,7 @@ export async function* streamCv(
     .filter(Boolean)
     .join("\n\n");
 
-  const stream = client.beta.messages.stream({
-    model: MODEL,
-    max_tokens: 64000,
-    betas: BETAS,
-    fallbacks: "default",
-    output_config: { effort: "high" },
-    system: CV_SYSTEM,
-    messages: [{ role: "user", content: userContent }],
-  });
-
-  for await (const event of stream) {
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      yield event.delta.text;
-    }
-  }
-  const final = await stream.finalMessage();
-  if (final.stop_reason === "refusal") throw new Error("El modelo rechazó generar el CV.");
-  if (final.stop_reason === "max_tokens") throw new Error("La respuesta se cortó por longitud.");
+  yield* streamClaudeText({ system: CV_SYSTEM, prompt: userContent, signal });
 }
 
 /** Por si el modelo envuelve la respuesta en ```markdown ... ``` */

@@ -15,11 +15,12 @@ export interface CvRoutesDeps {
   repo: CvsRepository;
   getVacancy: (id: string) => Promise<Vacancy | null>;
   retrieve: (vacancy: Vacancy) => Promise<MatchReport>;
-  /** Frontera externa: redacta el CV con Claude, por fragmentos de Markdown. */
+  /** Frontera externa: redacta el CV con Claude, por fragmentos de Markdown; `signal` cancela la generación. */
   streamCv: (
     vacancy: Vacancy,
     chunks: RetrievedChunk[],
     instructions?: string,
+    signal?: AbortSignal,
   ) => AsyncIterable<string>;
   cleanMarkdown: (markdown: string) => string;
   /** Genera el PDF en memoria; la API no lo guarda (C1). */
@@ -72,6 +73,9 @@ export function cvRoutes({
       if (!vacancy) return c.json({ error: "Vacante no encontrada" }, 404);
 
       return streamSSE(c, async (stream) => {
+        // Si el cliente se desconecta, se cancela la CLI: no se paga un CV que nadie va a leer.
+        const generation = new AbortController();
+        stream.onAbort(() => generation.abort());
         try {
           await stream.writeSSE({ event: "status", data: "Recuperando evidencia del perfil…" });
           const report = await retrieve(vacancy);
@@ -79,10 +83,16 @@ export function cvRoutes({
           await stream.writeSSE({ event: "status", data: "Redactando CV con Claude…" });
 
           let markdown = "";
-          for await (const delta of streamCv(vacancy, report.chunks, instructions)) {
+          for await (const delta of streamCv(
+            vacancy,
+            report.chunks,
+            instructions,
+            generation.signal,
+          )) {
             markdown += delta;
             await stream.writeSSE({ event: "delta", data: JSON.stringify(delta) });
           }
+          if (generation.signal.aborted) return;
 
           const doc = await repo.create({
             vacancyId: vacancy.id,

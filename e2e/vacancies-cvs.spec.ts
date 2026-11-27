@@ -16,7 +16,7 @@ async function filesIn(dir: string): Promise<string[]> {
   }
 }
 
-test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar ambos (Postgres + Anthropic falso)", async ({
+test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar ambos (Postgres + claude falso)", async ({
   page,
   request,
 }) => {

@@ -1,11 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
 import type { ProfileFile } from "@apply/shared";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { createApplicationsRepository } from "./applications/repository.ts";
 import { applicationRoutes } from "./applications/routes.ts";
+import { claudeBinaryExists } from "./claude/binary.ts";
+import { readClaudeConfig } from "./claude/cli.ts";
 import { createContactsRepository } from "./contacts/repository.ts";
 import { contactRoutes } from "./contacts/routes.ts";
 import { createCvsRepository } from "./cvs/repository.ts";
@@ -15,6 +16,7 @@ import { createEmailDraftsRepository } from "./emails/repository.ts";
 import { emailDraftRoutes } from "./emails/routes.ts";
 import { createEmailSender } from "./emails/send.ts";
 import { emailSendRoutes } from "./emails/send-routes.ts";
+import { apiErrorHandler } from "./errors.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
 import { readGmailConfig, readSyncMinutes } from "./gmail/config.ts";
 import { createGmailConnection } from "./gmail/connection.ts";
@@ -23,7 +25,8 @@ import { createReplySync } from "./gmail/sync.ts";
 import { createSyncRepository } from "./gmail/sync-repository.ts";
 import { gmailSyncRoutes } from "./gmail/sync-routes.ts";
 import { createTokenStore } from "./gmail/token-store.ts";
-import { cleanMarkdown, draftApplicationEmail, extractVacancy, MODEL, streamCv } from "./llm.ts";
+import { healthRoutes } from "./health/routes.ts";
+import { cleanMarkdown, draftApplicationEmail, extractVacancy, streamCv } from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
 import { createCvMatcher } from "./match-reports/service.ts";
 import { createMetricsRepository } from "./metrics/repository.ts";
@@ -39,27 +42,22 @@ import { vacancyRoutes } from "./vacancies/routes.ts";
 try {
   process.loadEnvFile(ENV_FILE);
 } catch {
-  // sin .env: se usan variables de entorno o el perfil de `ant auth login`
+  // sin .env: se usan las variables de entorno del proceso
 }
 
 await ensureDataDirs();
 
 const app = new Hono().basePath("/api");
 
-app.onError((err, c) => {
-  console.error(err);
-  let message = err instanceof Error ? err.message : String(err);
-  if (err instanceof Anthropic.AuthenticationError) {
-    message = "Credenciales de Anthropic inválidas o ausentes. Define ANTHROPIC_API_KEY en .env";
-  } else if (err instanceof Anthropic.RateLimitError) {
-    message = "Límite de uso de la API alcanzado; intenta de nuevo en un momento.";
-  } else if (err instanceof Anthropic.APIError) {
-    message = `Error de la API de Claude (${err.status}): ${err.message}`;
-  }
-  return c.json({ error: message }, 500);
-});
+app.onError(apiErrorHandler);
 
-app.get("/health", (c) => c.json({ ok: true, model: MODEL }));
+app.route(
+  "/",
+  healthRoutes({
+    config: () => readClaudeConfig(process.env),
+    binaryExists: (bin) => claudeBinaryExists(bin, process.env.PATH ?? ""),
+  }),
+);
 
 // ───────────── Perfil (base de conocimiento del RAG) ─────────────
 
@@ -173,7 +171,9 @@ void syncReplies();
 
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, () => {
-  console.log(`API local en http://localhost:${port}/api  ·  modelo: ${MODEL}`);
+  console.log(
+    `API local en http://localhost:${port}/api  ·  modelo: ${readClaudeConfig(process.env).model}`,
+  );
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
