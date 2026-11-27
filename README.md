@@ -69,6 +69,8 @@ npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
 
 ## Scripts
 
+Atajos con `make` (`make help` los lista): `make env` crea `.env` desde `.env.example` sin pisar uno existente; `make start` levanta Postgres, migra y arranca API + web en segundo plano (PID en `.run/dev.pid`, salida en `.run/dev.log`); `make logs`, `make status`, `make stop`, `make restart`, `make down` (app y Postgres); `make db-logs`, `make db-reset` (borra la base, pide confirmación); `make check` (lint + typecheck + tests), `make test`, `make e2e`, `make mutation`; `make clean` borra reportes y temporales sin tocar `data/`, `.env`, los modelos ni la base.
+
 - `npm run dev`: API (:3001) y web con recarga (workspaces `@apply/api` y `@apply/web`)
 - `npm run build`: typecheck y build del frontend
 - `npm run typecheck`: `tsc -b` sobre los cuatro workspaces

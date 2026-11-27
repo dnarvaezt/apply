@@ -27,3 +27,6 @@ blob-report/
 coverage/
 
 .vscode
+
+# Proceso de `make start` (PID y log)
+.run/
