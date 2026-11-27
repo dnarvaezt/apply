@@ -1,3 +1,5 @@
+import type { ApplicationContact } from "./contact.ts";
+
 export const APPLICATION_STATUSES = [
   "applied",
   "contacted",
@@ -36,6 +38,8 @@ export interface ApplicationEvent {
   /** Slug del canal (`email`, `linkedin`, ...). */
   channel: string | null;
   source: EventSource;
+  /** Contacto vinculado a la postulación con el que ocurrió el evento. */
+  contactId: string | null;
   notes: string | null;
   gmailMessageId: string | null;
   createdAt: string;
@@ -64,6 +68,7 @@ export interface AddEventRequest {
   occurredAt?: string;
   channel?: string | null;
   source: EventSource;
+  contactId?: string | null;
   notes?: string | null;
   gmailMessageId?: string | null;
 }
@@ -71,4 +76,5 @@ export interface AddEventRequest {
 export interface ApplicationTimeline {
   application: Application;
   events: ApplicationEvent[];
+  contacts: ApplicationContact[];
 }

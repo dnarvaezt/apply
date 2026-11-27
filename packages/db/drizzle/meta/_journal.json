@@ -57,6 +57,13 @@
       "when": 1795797121249,
       "tag": "0007_outbound_email_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795799309403,
+      "tag": "0008_contact_notes",
+      "breakpoints": true
     }
   ]
 }

@@ -70,6 +70,7 @@ describe("crear postulación (REQ-001, REQ-002)", () => {
         occurredAt: T1,
         channel: "email",
         source: "manual",
+        contactId: null,
         notes: "por correo",
         gmailMessageId: null,
         createdAt: expect.any(String),

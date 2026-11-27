@@ -12,10 +12,21 @@ const NOT_FOUND = { error: "Postulación no encontrada" };
 const source = z.enum(["auto", "manual"]);
 const optionalText = z.string().trim().min(1).nullish();
 
+/** Margen para relojes desfasados entre el navegador y la API. */
+const CLOCK_SKEW_MS = 60_000;
+
+/** Fecha en que ocurrió algo: no puede ser futura (REQ-006). */
+const pastDate = z.iso
+  .datetime({ offset: true })
+  .refine(
+    (value) => Date.parse(value) <= Date.now() + CLOCK_SKEW_MS,
+    "La fecha no puede ser futura",
+  );
+
 const createSchema = z.object({
   vacancyId: z.string().min(1),
   cvId: optionalText,
-  appliedAt: z.iso.datetime({ offset: true }).optional(),
+  appliedAt: pastDate.optional(),
   channel: optionalText,
   source: source.default("manual"),
   notes: optionalText,
@@ -23,9 +34,10 @@ const createSchema = z.object({
 
 const eventSchema = z.object({
   type: z.enum([...APPLICATION_STATUSES, "reopened"]),
-  occurredAt: z.iso.datetime({ offset: true }).optional(),
+  occurredAt: pastDate.optional(),
   channel: optionalText,
   source,
+  contactId: optionalText,
   notes: optionalText,
   gmailMessageId: optionalText,
 });
@@ -56,6 +68,8 @@ export function applicationRoutes({ repo }: ApplicationRoutesDeps) {
         const vacancyId = c.req.query("vacancyId");
         return c.json(await repo.list(vacancyId === undefined ? {} : { vacancyId }));
       })
+
+      .get("/channels", async (c) => c.json(await repo.channels()))
 
       .post("/applications", async (c) => {
         const body = await parseBody(c, createSchema);

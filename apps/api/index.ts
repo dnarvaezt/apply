@@ -6,6 +6,8 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { createApplicationsRepository } from "./applications/repository.ts";
 import { applicationRoutes } from "./applications/routes.ts";
+import { createContactsRepository } from "./contacts/repository.ts";
+import { contactRoutes } from "./contacts/routes.ts";
 import { createCvsRepository } from "./cvs/repository.ts";
 import { cvRoutes } from "./cvs/routes.ts";
 import { closeDb, getDb } from "./db.ts";
@@ -110,6 +112,7 @@ app.route(
   }),
 );
 app.route("/", applicationRoutes({ repo: createApplicationsRepository(getDb()) }));
+app.route("/", contactRoutes({ repo: createContactsRepository(getDb()) }));
 app.route(
   "/",
   emailDraftRoutes({

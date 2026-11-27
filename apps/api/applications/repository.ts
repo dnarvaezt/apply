@@ -6,14 +6,19 @@ import type {
   ApplicationEventType,
   ApplicationStatus,
   ApplicationTimeline,
+  Channel,
   EventSource,
 } from "@apply/shared";
 import { asc, desc, eq } from "drizzle-orm";
+import { isLinked, listApplicationContacts } from "../contacts/repository.ts";
 import type { Db, Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
 import { canRecord, isActive, isClassifying, isTerminal, next } from "./status.ts";
 
-/** Entrada inválida del cliente (canal o CV inexistente, `reopened` automático): la ruta responde 400. */
+/**
+ * Entrada inválida del cliente (canal o CV inexistente, contacto ajeno, `reopened` automático):
+ * la ruta responde 400.
+ */
 export class InvalidEventError extends Error {}
 
 export interface NewApplication {
@@ -30,6 +35,7 @@ export interface NewEvent {
   occurredAt?: string;
   channel?: string | null;
   source: EventSource;
+  contactId?: string | null;
   notes?: string | null;
   gmailMessageId?: string | null;
 }
@@ -56,6 +62,7 @@ const eventColumns = {
   occurredAt: applicationEvents.occurredAt,
   channel: channels.slug,
   source: applicationEvents.source,
+  contactId: applicationEvents.contactId,
   notes: applicationEvents.notes,
   gmailMessageId: applicationEvents.gmailMessageId,
   createdAt: applicationEvents.createdAt,
@@ -68,6 +75,7 @@ function toEvent(row: {
   occurredAt: Date;
   channel: string | null;
   source: EventSource;
+  contactId: number | null;
   notes: string | null;
   gmailMessageId: string | null;
   createdAt: Date;
@@ -76,6 +84,7 @@ function toEvent(row: {
     ...row,
     id: formatId(row.id),
     applicationId: formatId(row.applicationId),
+    contactId: row.contactId === null ? null : formatId(row.contactId),
     occurredAt: row.occurredAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
   };
@@ -96,6 +105,20 @@ async function channelId(tx: Executor, slug: string | null | undefined): Promise
   const [row] = await tx.select({ id: channels.id }).from(channels).where(eq(channels.slug, slug));
   if (!row) throw new InvalidEventError(`Canal desconocido: ${slug}`);
   return row.id;
+}
+
+/** Contacto del evento: debe estar vinculado a la postulación. */
+async function eventContactId(
+  tx: Executor,
+  applicationId: number,
+  raw: string | null | undefined,
+): Promise<number | null> {
+  if (!raw) return null;
+  const id = parseId(raw);
+  if (id === null || !(await isLinked(tx, applicationId, id))) {
+    throw new InvalidEventError("El contacto no está vinculado a la postulación");
+  }
+  return id;
 }
 
 /**
@@ -127,6 +150,7 @@ async function recordEvent(
       occurredAt,
       channelId: await channelId(tx, input.channel),
       source: input.source,
+      contactId: await eventContactId(tx, applicationId, input.contactId),
       notes: input.notes ?? null,
       gmailMessageId: input.gmailMessageId ?? null,
     })
@@ -228,7 +252,15 @@ export function createApplicationsRepository(db: Db) {
       return rows.map(toApplication);
     },
 
-    /** Postulación y sus eventos en orden cronológico; `null` si no existe. */
+    /** Canales de contacto de la tabla `channels`, por nombre. */
+    async channels(): Promise<Channel[]> {
+      return db
+        .select({ slug: channels.slug, name: channels.name })
+        .from(channels)
+        .orderBy(asc(channels.name));
+    },
+
+    /** Postulación, sus eventos en orden cronológico y sus contactos; `null` si no existe. */
     async timeline(id: string): Promise<ApplicationTimeline | null> {
       const application = await this.get(id);
       if (!application) return null;
@@ -238,7 +270,8 @@ export function createApplicationsRepository(db: Db) {
         .leftJoin(channels, eq(channels.id, applicationEvents.channelId))
         .where(eq(applicationEvents.applicationId, Number(application.id)))
         .orderBy(asc(applicationEvents.occurredAt), asc(applicationEvents.id));
-      return { application, events: rows.map(toEvent) };
+      const contacts = await listApplicationContacts(db, Number(application.id));
+      return { application, events: rows.map(toEvent), contacts };
     },
   };
 }

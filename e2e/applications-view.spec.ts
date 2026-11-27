@@ -92,3 +92,53 @@ test("AC-004 (#18): filtrar por cerradas deja solo las terminales", async ({ pag
   await expect(items.filter({ hasText: "Entrevista" })).toHaveCount(0);
   for (const item of await items.all()) await expect(item).toContainText("Cerrada");
 });
+
+test("AC-005 (#20): registrar a mano postulación, contacto y entrevista desde la vista", async ({
+  page,
+  request,
+}) => {
+  const vacancy = await createVacancy(request);
+  await openPipeline(page);
+
+  const created = page.locator('[data-id="new-application-form"]');
+  await created.getByLabel("Vacante", { exact: true }).selectOption(vacancy.id);
+  await created.getByLabel("Canal", { exact: true }).selectOption("ats");
+  await created.getByLabel("Fecha", { exact: true }).fill("2026-11-02T09:00");
+  await created.getByRole("button", { name: "Registrar postulación" }).click();
+  await expect(page.getByText("Postulación registrada")).toBeVisible();
+
+  const timeline = page.locator('[data-id="application-timeline"] li');
+  await expect(timeline).toHaveCount(1);
+  await expect(timeline.first()).toContainText("ATS");
+
+  const contacts = page.locator('[data-id="contacts-panel"]');
+  await contacts.getByRole("button", { name: "Agregar contacto" }).click();
+  const contactForm = contacts.locator('[data-id="contact-form"]');
+  await contactForm.getByLabel("Nombre").fill("Laura Gómez");
+  await contactForm.getByLabel("LinkedIn").fill("https://www.linkedin.com/in/laura-ejemplo");
+  await contactForm.getByLabel("Inició el proceso").check();
+  await contactForm.getByRole("button", { name: "Agregar contacto" }).click();
+  await expect(page.getByText("Contacto agregado")).toBeVisible();
+  const laura = contacts.locator('[data-id="contacts-panel__contact"]');
+  await expect(laura).toContainText("Laura Gómez");
+  await expect(laura).toContainText("Inicio del proceso");
+
+  const eventForm = page.locator('[data-id="event-form"]');
+  await eventForm.getByLabel("Tipo").selectOption("interview");
+  await eventForm.getByLabel("Canal").selectOption("linkedin");
+  await eventForm.getByLabel("Fecha", { exact: true }).fill("2026-11-03T16:30");
+  await eventForm.getByLabel("Contacto").selectOption({ label: "Laura Gómez" });
+  await eventForm.getByRole("button", { name: "Registrar evento" }).click();
+  await expect(page.getByText("Evento registrado")).toBeVisible();
+
+  await expect(timeline).toHaveCount(2);
+  await expect(timeline.nth(1)).toContainText("Entrevista");
+  await expect(timeline.nth(1)).toContainText("LinkedIn");
+  await expect(timeline.nth(1)).toContainText("con Laura Gómez");
+  await expect(page.locator('[data-id="application-detail__status"]')).toContainText("Entrevista");
+
+  const [stored] = (await (
+    await request.get(`${API}/applications?vacancyId=${vacancy.id}`)
+  ).json()) as Application[];
+  expect(stored?.status).toBe("interview");
+});

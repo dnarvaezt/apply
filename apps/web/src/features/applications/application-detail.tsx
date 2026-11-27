@@ -1,0 +1,51 @@
+import type {
+  AddEventRequest,
+  Channel,
+  ContactInput,
+  NewApplicationContactRequest,
+  ApplicationTimeline as Timeline,
+} from "@apply/shared";
+import { Badge } from "@/components/ui/badge";
+import { ApplicationTimeline } from "./application-timeline";
+import { ContactsPanel } from "./contacts-panel";
+import { EventForm } from "./event-form";
+import { STATUS_LABEL } from "./pipeline";
+
+/** Detalle de la postulación elegida: estado, eventos, registro manual y contactos. */
+export function ApplicationDetail({
+  timeline,
+  channels,
+  onAddEvent,
+  onAddContact,
+  onUpdateContact,
+  onMarkProcessStart,
+}: {
+  timeline: Timeline;
+  channels: Channel[];
+  onAddEvent: (req: AddEventRequest) => Promise<boolean>;
+  onAddContact: (req: NewApplicationContactRequest) => Promise<boolean>;
+  onUpdateContact: (id: string, input: ContactInput) => Promise<boolean>;
+  onMarkProcessStart: (id: string, isProcessStart: boolean) => Promise<void>;
+}) {
+  const { application, events, contacts } = timeline;
+  return (
+    <div className="flex flex-col gap-6" data-id="application-detail">
+      <p className="flex flex-wrap items-center gap-2 text-sm" data-id="application-detail__status">
+        Estado: <Badge>{STATUS_LABEL[application.status]}</Badge>
+      </p>
+      <ApplicationTimeline events={events} channels={channels} contacts={contacts} />
+      <section className="flex flex-col gap-3" aria-labelledby="event-form-title">
+        <h3 id="event-form-title" className="font-medium">
+          Registrar evento
+        </h3>
+        <EventForm channels={channels} contacts={contacts} onSubmit={onAddEvent} />
+      </section>
+      <ContactsPanel
+        contacts={contacts}
+        onAdd={onAddContact}
+        onUpdate={onUpdateContact}
+        onMarkProcessStart={onMarkProcessStart}
+      />
+    </div>
+  );
+}

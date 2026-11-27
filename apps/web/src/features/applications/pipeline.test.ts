@@ -1,12 +1,15 @@
 import { APPLICATION_STATUSES } from "@apply/shared";
 import { describe, expect, it } from "vitest";
-import { application, event } from "./fixtures.ts";
+import { application, CHANNELS, event } from "./fixtures.ts";
 import {
+  channelLabel,
   chronological,
   cvsForVacancy,
+  localInputToIso,
   matchesFilter,
   type PipelineFilter,
   STATUS_LABEL,
+  toLocalInput,
   toPipelineRows,
 } from "./pipeline.ts";
 
@@ -108,5 +111,25 @@ describe("cvsForVacancy", () => {
 
   it("sin vacante elegida no ofrece CVs", () => {
     expect(cvsForVacancy([cv("c", null)], "")).toEqual([]);
+  });
+});
+
+describe("fechas del formulario (datetime-local)", () => {
+  it("toLocalInput da la hora local en minutos y localInputToIso la devuelve en ISO", () => {
+    const at = new Date(2026, 10, 3, 9, 5, 42);
+    expect(toLocalInput(at)).toBe("2026-11-03T09:05");
+    expect(localInputToIso("2026-11-03T09:05")).toBe(new Date(2026, 10, 3, 9, 5).toISOString());
+  });
+
+  it("vacío no envía fecha: la API usa el momento actual", () => {
+    expect(localInputToIso("")).toBeUndefined();
+  });
+});
+
+describe("channelLabel", () => {
+  it("usa el nombre del canal, cae al slug si no está y avisa si no hay canal", () => {
+    expect(channelLabel(CHANNELS, "email")).toBe("Correo");
+    expect(channelLabel(CHANNELS, "fax")).toBe("fax");
+    expect(channelLabel(CHANNELS, null)).toBe("sin canal");
   });
 });

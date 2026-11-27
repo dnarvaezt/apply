@@ -196,7 +196,9 @@ export const contacts = pgTable("contacts", {
   email: text("email"),
   phone: text("phone"),
   title: text("title"),
+  /** URL del perfil (LinkedIn u otro). */
   profileUrl: text("profile_url"),
+  notes: text("notes"),
   createdAt: createdAt(),
 });
 
