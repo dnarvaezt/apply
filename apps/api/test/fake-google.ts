@@ -8,6 +8,16 @@ export const FAKE_GMAIL_ADDRESS = "postulante@example.com";
 /** Qué responde el endpoint de token al refrescar. */
 export type RefreshMode = "ok" | "rotate" | "invalid_grant";
 
+/** Qué hace `messages.send`: enviar, responder 400, o enviar y cortar la conexión (resultado perdido). */
+export type SendMode = "ok" | "reject" | "drop" | "no_id";
+
+export interface FakeSent {
+  raw: string;
+  messageId: string | null;
+  id: string;
+  threadId: string;
+}
+
 export interface FakeGoogle {
   /** Raíz con `/` final: sirve de `GMAIL_API_ROOT_URL`. */
   url: string;
@@ -20,6 +30,13 @@ export interface FakeGoogle {
   refreshMode: RefreshMode;
   /** Si el canje del code entrega refresh token (Google lo omite si ya hubo consentimiento). */
   consentRefresh: boolean;
+  sendMode: SendMode;
+  /** Mensajes que Gmail falso "envió", en orden. */
+  sent: FakeSent[];
+  /** Consulta `q` de cada `messages.list`. */
+  searches: string[];
+  /** Se llama justo antes de aceptar un envío: permite mirar qué se persistió antes (AC-004). */
+  beforeSend: (() => Promise<void>) | null;
   close: () => Promise<void>;
 }
 
@@ -38,7 +55,7 @@ const challengeOf = (verifier: string) => createHash("sha256").update(verifier).
 
 /**
  * Google falso en la frontera HTTP (D9): consentimiento que aprueba solo y redirige al loopback,
- * endpoint de token que valida PKCE y `users.getProfile`.
+ * endpoint de token que valida PKCE, `users.getProfile`, `messages.send` y `messages.list`.
  */
 export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
   const pending = new Map<string, { challenge: string; redirectUri: string }>();
@@ -53,6 +70,10 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
     tokenRequests: [],
     refreshMode: "ok",
     consentRefresh: true,
+    sendMode: "ok",
+    sent: [],
+    searches: [],
+    beforeSend: null,
     close: async () => {
       server.closeAllConnections();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -111,6 +132,26 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
     return invalid();
   }
 
+  async function send(req: IncomingMessage, res: ServerResponse) {
+    const { raw } = JSON.parse(await body(req)) as { raw: string };
+    await fake.beforeSend?.();
+    if (fake.sendMode === "reject") {
+      return json(res, 400, { error: { code: 400, message: "Invalid To header" } });
+    }
+    if (fake.sendMode === "no_id") return json(res, 200, {});
+    const decoded = Buffer.from(raw, "base64url").toString("utf8");
+    const n = fake.sent.length + 1;
+    const message: FakeSent = {
+      raw,
+      messageId: decoded.match(/^Message-ID: (.+?)\r?$/im)?.[1] ?? null,
+      id: `fake-msg-${n}`,
+      threadId: `fake-thread-${n}`,
+    };
+    fake.sent.push(message);
+    if (fake.sendMode === "drop") return void res.destroy();
+    return json(res, 200, { id: message.id, threadId: message.threadId, labelIds: ["SENT"] });
+  }
+
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
@@ -134,6 +175,17 @@ export async function startFakeGoogle(port = 0): Promise<FakeGoogle> {
 
     if (req.method === "GET" && url.pathname === "/gmail/v1/users/me/profile") {
       return json(res, 200, { emailAddress: FAKE_GMAIL_ADDRESS, messagesTotal: 0 });
+    }
+    if (req.method === "POST" && url.pathname === "/gmail/v1/users/me/messages/send") {
+      return void send(req, res);
+    }
+    if (req.method === "GET" && url.pathname === "/gmail/v1/users/me/messages") {
+      const q = url.searchParams.get("q") ?? "";
+      fake.searches.push(q);
+      const wanted = q.match(/^rfc822msgid:(.+)$/)?.[1];
+      const found = fake.sent.filter((m) => m.messageId === `<${wanted}>`);
+      const messages = found.map(({ id, threadId }) => ({ id, threadId }));
+      return json(res, 200, messages.length ? { messages, resultSizeEstimate: 1 } : {});
     }
     return json(res, 404, { error: { code: 404, message: `Sin ruta: ${url.pathname}` } });
   });

@@ -12,6 +12,10 @@ export interface EmailDraft {
   body: string;
   language: "es" | "en";
   status: EmailStatus;
+  /** Fecha en que Gmail aceptó el envío (#21); `null` mientras no salga. */
+  sentAt: string | null;
+  /** Postulación creada al enviar (evento `applied` por `email`). */
+  applicationId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,4 +25,14 @@ export interface EmailDraftChanges {
   to: string;
   subject: string;
   body: string;
+}
+
+/** Enviar exige confirmar de forma explícita tras ver asunto, cuerpo y PDF (C10). */
+export interface EmailSendRequest {
+  confirmed: true;
+}
+
+/** Respuesta humana a un envío ambiguo: ¿llegó el correo? (C4). */
+export interface EmailResolveRequest {
+  sent: boolean;
 }

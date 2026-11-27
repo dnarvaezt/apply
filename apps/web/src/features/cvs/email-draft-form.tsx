@@ -11,16 +11,34 @@ interface Props {
   draft: EmailDraft;
   saving: boolean;
   onSave: (changes: EmailDraftChanges) => void;
+  /** Avisa si los campos difieren de lo guardado, en cada edición. */
+  onDirtyChange: (dirty: boolean) => void;
+}
+
+interface Fields {
+  to: string;
+  subject: string;
+  body: string;
 }
 
 /** Campos editables del borrador; se monta con `key` por versión para partir del guardado. */
-export function EmailDraftForm({ draft, saving, onSave }: Props) {
-  const [to, setTo] = useState(draft.to ?? "");
-  const [subject, setSubject] = useState(draft.subject);
-  const [body, setBody] = useState(draft.body);
+export function EmailDraftForm({ draft, saving, onSave, onDirtyChange }: Props) {
+  const [fields, setFields] = useState<Fields>({
+    to: draft.to ?? "",
+    subject: draft.subject,
+    body: draft.body,
+  });
+  const { to, subject, body } = fields;
   const ids = { to: useId(), subject: useId(), body: useId(), missing: useId() };
 
-  const dirty = to !== (draft.to ?? "") || subject !== draft.subject || body !== draft.body;
+  const differs = (f: Fields) =>
+    f.to !== (draft.to ?? "") || f.subject !== draft.subject || f.body !== draft.body;
+  const dirty = differs(fields);
+  const change = (patch: Partial<Fields>) => {
+    const next = { ...fields, ...patch };
+    setFields(next);
+    onDirtyChange(differs(next));
+  };
   const complete = subject.trim() !== "" && body.trim() !== "";
   const missingRecipient = to.trim() === "";
 
@@ -42,7 +60,7 @@ export function EmailDraftForm({ draft, saving, onSave }: Props) {
           autoComplete="email"
           className="text-base md:text-sm"
           value={to}
-          onChange={(e) => setTo(e.target.value)}
+          onChange={(e) => change({ to: e.target.value })}
           aria-describedby={missingRecipient ? ids.missing : undefined}
         />
         {missingRecipient && (
@@ -57,7 +75,7 @@ export function EmailDraftForm({ draft, saving, onSave }: Props) {
           id={ids.subject}
           className="text-base md:text-sm"
           value={subject}
-          onChange={(e) => setSubject(e.target.value)}
+          onChange={(e) => change({ subject: e.target.value })}
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -66,7 +84,7 @@ export function EmailDraftForm({ draft, saving, onSave }: Props) {
           id={ids.body}
           className="min-h-48 text-base leading-relaxed md:text-sm"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
+          onChange={(e) => change({ body: e.target.value })}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">

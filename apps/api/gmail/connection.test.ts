@@ -4,7 +4,12 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FAKE_GMAIL_ADDRESS, type FakeGoogle, startFakeGoogle } from "../test/fake-google.ts";
 import type { GmailConfig } from "./config.ts";
-import { createGmailConnection, type GmailConnection, isInvalidGrant } from "./connection.ts";
+import {
+  createGmailConnection,
+  type GmailConnection,
+  GmailUnavailableError,
+  isInvalidGrant,
+} from "./connection.ts";
 import { createTokenStore, type TokenStore } from "./token-store.ts";
 
 let google: FakeGoogle;
@@ -224,6 +229,74 @@ describe("refresh token (REQ-003, REQ-006)", () => {
     await google.close();
     await expect(gmail.status()).rejects.toThrow();
     expect((await store.read())?.reauthRequired).toBe(false);
+  });
+});
+
+const rawWith = (messageId: string) =>
+  Buffer.from(`To: a@example.com\r\nMessage-ID: ${messageId}\r\n\r\nHola`).toString("base64url");
+
+describe("envío (#21)", () => {
+  it("send entrega el raw a messages.send y devuelve el id y el threadId", async () => {
+    await connect();
+    const raw = rawWith("<apply-1@apply.local>");
+    expect(await gmail.send(raw)).toEqual({ id: "fake-msg-1", threadId: "fake-thread-1" });
+    expect(google.sent).toEqual([
+      { raw, messageId: "<apply-1@apply.local>", id: "fake-msg-1", threadId: "fake-thread-1" },
+    ]);
+  });
+
+  it("findSent encuentra un envío por su Message-ID y devuelve null si no existe", async () => {
+    await connect();
+    await gmail.send(rawWith("<apply-1@apply.local>"));
+    expect(await gmail.findSent("<apply-1@apply.local>")).toEqual({
+      id: "fake-msg-1",
+      threadId: "fake-thread-1",
+    });
+    expect(await gmail.findSent("<apply-2@apply.local>")).toBeNull();
+    expect(google.searches).toEqual([
+      "rfc822msgid:apply-1@apply.local",
+      "rfc822msgid:apply-2@apply.local",
+    ]);
+  });
+
+  it("sin cuenta conectada falla con GmailUnavailableError sin llamar a Google", async () => {
+    const error = await gmail.send("x").catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GmailUnavailableError);
+    expect(error).toMatchObject({ state: "disconnected", email: null });
+    expect(google.tokenRequests).toEqual([]);
+  });
+
+  it("AC-006: invalid_grant al enviar marca reauth y no llega a messages.send", async () => {
+    await connect();
+    google.refreshMode = "invalid_grant";
+    const error = await gmail.send(rawWith("<apply-1@apply.local>")).catch((e: unknown) => e);
+    expect(error).toMatchObject({ state: "reauth_required", email: FAKE_GMAIL_ADDRESS });
+    expect(error).toBeInstanceOf(GmailUnavailableError);
+    expect(google.sent).toEqual([]);
+    expect((await store.read())?.reauthRequired).toBe(true);
+    // Con reauth pendiente ya no intenta refrescar.
+    const calls = google.tokenRequests.length;
+    await expect(gmail.findSent("<a@b>")).rejects.toBeInstanceOf(GmailUnavailableError);
+    expect(google.tokenRequests).toHaveLength(calls);
+  });
+
+  it("un error HTTP de Google se propaga y conserva el token rotado", async () => {
+    await connect();
+    google.refreshMode = "rotate";
+    google.sendMode = "reject";
+    await expect(gmail.send(rawWith("<apply-1@apply.local>"))).rejects.toMatchObject({
+      response: { status: 400 },
+    });
+    expect(await store.read()).toMatchObject({
+      refreshToken: "fake-refresh-2",
+      reauthRequired: false,
+    });
+  });
+
+  it("una respuesta sin id es un error", async () => {
+    await connect();
+    google.sendMode = "no_id";
+    await expect(gmail.send(rawWith("<apply-1@apply.local>"))).rejects.toThrow(/sin id/);
   });
 });
 

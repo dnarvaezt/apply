@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { GmailConnectStart, GmailStatus } from "@apply/shared";
-import { gmail as gmailApi } from "@googleapis/gmail";
+import { type gmail_v1, gmail as gmailApi } from "@googleapis/gmail";
 import { CodeChallengeMethod, OAuth2Client } from "google-auth-library";
 import { z } from "zod";
 import { GMAIL_SCOPES, type GmailConfig } from "./config.ts";
@@ -10,12 +10,41 @@ import type { StoredTokens, TokenStore } from "./token-store.ts";
 
 const CALLBACK_PATH = "/oauth2callback";
 const CONSENT_TIMEOUT_MS = 5 * 60_000;
+/** Ninguna llamada a Gmail espera para siempre; un envío sin respuesta queda ambiguo (#21). */
+const API_TIMEOUT_MS = 30_000;
 
 /** Google responde `invalid_grant` cuando el refresh token caducó o se revocó (OBS-02). */
 const invalidGrant = z.object({
   response: z.object({ data: z.object({ error: z.literal("invalid_grant") }) }),
 });
 export const isInvalidGrant = (e: unknown) => invalidGrant.safeParse(e).success;
+
+/** No hay cuenta usable: sin conectar o con reauth pendiente. No se llegó a llamar a Gmail. */
+export class GmailUnavailableError extends Error {
+  readonly state: "disconnected" | "reauth_required";
+  readonly email: string | null;
+
+  constructor(state: GmailUnavailableError["state"], email: string | null) {
+    super(
+      state === "disconnected"
+        ? "Gmail no está conectado: conéctalo en la pestaña Gmail"
+        : "Gmail pide volver a conectar la cuenta (reauth required)",
+    );
+    this.state = state;
+    this.email = email;
+  }
+}
+
+/** Ids que Gmail asigna a un mensaje enviado. */
+export interface GmailMessageRef {
+  id: string;
+  threadId: string;
+}
+
+function messageRef(data: { id?: string | null; threadId?: string | null }): GmailMessageRef {
+  if (!data.id || !data.threadId) throw new Error("Gmail respondió sin id o threadId");
+  return { id: data.id, threadId: data.threadId };
+}
 
 export interface GmailConnectionDeps {
   config: GmailConfig;
@@ -51,12 +80,15 @@ export function createGmailConnection({
       endpoints,
     });
 
-  async function profileEmail(auth: OAuth2Client): Promise<string | null> {
-    const api = gmailApi({
+  const apiFor = (auth: OAuth2Client) =>
+    gmailApi({
       version: "v1",
       auth,
+      timeout: API_TIMEOUT_MS,
       ...(config.apiRootUrl && { rootUrl: config.apiRootUrl }),
     });
+
+  async function profileEmail(api: gmail_v1.Gmail): Promise<string | null> {
     const { data } = await api.users.getProfile({ userId: "me" });
     return data.emailAddress ?? null;
   }
@@ -107,7 +139,7 @@ export function createGmailConnection({
         const { tokens } = await client.getToken({ code, codeVerifier });
         if (!tokens.refresh_token) throw new Error("Google no devolvió un refresh token");
         client.setCredentials(tokens);
-        const email = await profileEmail(client);
+        const email = await profileEmail(apiFor(client));
         await store.write({ refreshToken: tokens.refresh_token, email, reauthRequired: false });
         page(res, 200, "Gmail conectado. Ya puedes cerrar esta pestaña y volver a Apply.");
       } catch (e) {
@@ -145,29 +177,74 @@ export function createGmailConnection({
     return { client, rotated: () => rotated };
   }
 
-  /** Estado real: refresca el token y pregunta a Google qué cuenta está conectada (REQ-005). */
-  async function status(): Promise<GmailStatus> {
+  /**
+   * Corre `fn` con la cuenta guardada. Un refresh token rotado se guarda aunque `fn` falle;
+   * `invalid_grant` deja la cuenta en reauth y falla con `GmailUnavailableError` (OBS-07).
+   */
+  async function withGmail<T>(
+    fn: (api: gmail_v1.Gmail) => Promise<T>,
+    accountOf: (result: T, saved: StoredTokens) => string | null = (_, saved) => saved.email,
+  ): Promise<T> {
     const saved = await store.read();
-    if (!saved) return { state: "disconnected", email: null };
-    if (saved.reauthRequired) return { state: "reauth_required", email: saved.email };
+    if (!saved) throw new GmailUnavailableError("disconnected", null);
+    if (saved.reauthRequired) throw new GmailUnavailableError("reauth_required", saved.email);
     const { client, rotated } = authorized(saved);
-    try {
-      const email = await profileEmail(client);
+    const keep = async (email: string | null) => {
       const refreshToken = rotated() ?? saved.refreshToken;
       if (refreshToken !== saved.refreshToken || email !== saved.email) {
         await store.write({ ...saved, refreshToken, email });
       }
-      return { state: "connected", email };
+    };
+    try {
+      const result = await fn(apiFor(client));
+      await keep(accountOf(result, saved));
+      return result;
     } catch (e) {
-      if (!isInvalidGrant(e)) throw e;
+      if (!isInvalidGrant(e)) {
+        await keep(saved.email);
+        throw e;
+      }
       await store.write({ ...saved, reauthRequired: true });
-      return { state: "reauth_required", email: saved.email };
+      throw new GmailUnavailableError("reauth_required", saved.email);
     }
   }
+
+  /** Estado real: refresca el token y pregunta a Google qué cuenta está conectada (REQ-005). */
+  async function status(): Promise<GmailStatus> {
+    try {
+      const email = await withGmail(profileEmail, (found) => found);
+      return { state: "connected", email };
+    } catch (e) {
+      if (e instanceof GmailUnavailableError) return { state: e.state, email: e.email };
+      throw e;
+    }
+  }
+
+  /** `users.messages.send` con el MIME ya construido en base64url (D8). */
+  const send = (raw: string) =>
+    withGmail(async (api) => {
+      const { data } = await api.users.messages.send({ userId: "me", requestBody: { raw } });
+      return messageRef(data);
+    });
+
+  /** Dedupe (#5): busca un envío previo por su Message-ID propio; `null` si no salió. */
+  const findSent = (messageId: string) =>
+    withGmail(async (api) => {
+      const bare = messageId.replace(/^<|>$/g, "");
+      const { data } = await api.users.messages.list({
+        userId: "me",
+        q: `rfc822msgid:${bare}`,
+        maxResults: 1,
+      });
+      const [found] = data.messages ?? [];
+      return found ? messageRef(found) : null;
+    });
 
   return {
     start,
     status,
+    send,
+    findSent,
     close: () => {
       if (loopback) close(loopback);
     },

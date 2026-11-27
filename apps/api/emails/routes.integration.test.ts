@@ -22,6 +22,8 @@ const draftSchema: z.ZodType<EmailDraft> = z.strictObject({
   body: z.string(),
   language: z.enum(["es", "en"]),
   status: z.enum(EMAIL_STATUSES),
+  sentAt: z.iso.datetime().nullable(),
+  applicationId: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

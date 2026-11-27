@@ -461,6 +461,15 @@ describe("sin archivos en data/ (AC-004 / REQ-001 / REQ-004)", () => {
     expect(await snapshot(DATA_DIR)).toEqual(before);
   });
 
+  it("GET /cvs/:id/pdf?inline=1 se muestra en la vista previa del envío (#21)", async () => {
+    const { body: vacancy } = await createVacancy();
+    const doc = await generateCv(vacancy.id);
+    const res = await call("GET", `/cvs/${doc.id}/pdf?inline=1`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Disposition")).toMatch(/^inline; filename="CV-.+\.pdf"$/);
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(PDF);
+  });
+
   it("el PDF de un CV inexistente responde 404", async () => {
     const res = await call("GET", "/cvs/999/pdf");
     expect(res.status).toBe(404);

@@ -24,7 +24,11 @@ const updateSchema = z.object({
   body: z.string().trim().min(1),
 });
 
-async function parseBody<T>(c: Context, schema: z.ZodType<T>, empty: unknown): Promise<T | string> {
+export async function parseBody<T>(
+  c: Context,
+  schema: z.ZodType<T>,
+  empty: unknown,
+): Promise<T | string> {
   const text = await c.req.text();
   let raw: unknown = empty;
   try {
