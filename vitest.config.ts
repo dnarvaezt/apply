@@ -61,6 +61,7 @@ export default defineConfig({
         "apps/api/vacancies/posted-at.ts",
         "apps/api/vacancies/relative-date.ts",
         "apps/web/src/features/vacancies/poster-form.ts",
+        "apps/web/src/features/applications/pipeline.ts",
         "apps/api/applications/status.ts",
         "apps/api/import/legacy.ts",
         "apps/api/import/report.ts",

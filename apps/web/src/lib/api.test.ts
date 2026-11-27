@@ -89,6 +89,24 @@ describe("api", () => {
   });
 });
 
+describe("api.applications", () => {
+  it("lista, filtra por vacante, lee la línea de tiempo y crea con POST", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    await api.applications.list();
+    await api.applications.list("v 1");
+    await api.applications.timeline("a1");
+    await api.applications.create({ vacancyId: "v1", cvId: "c1" });
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
+      "GET /api/applications",
+      "GET /api/applications?vacancyId=v%201",
+      "GET /api/applications/a1",
+      "POST /api/applications",
+    ]);
+    expect(calls[3][1]?.body).toBe(JSON.stringify({ vacancyId: "v1", cvId: "c1" }));
+  });
+});
+
 function sse(...events: string[]): Response {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {

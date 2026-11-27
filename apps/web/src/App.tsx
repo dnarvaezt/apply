@@ -1,12 +1,13 @@
-import { Briefcase, FileText, UserRound } from "lucide-react";
+import { Briefcase, FileText, Send, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApplicationsPage } from "@/features/applications/applications-page";
 import { CvsPage } from "@/features/cvs/cvs-page";
 import { ProfilePage } from "@/features/profile/profile-page";
 import { VacanciesPage } from "@/features/vacancies/vacancies-page";
 
-type Tab = "profile" | "vacancies" | "cvs";
+type Tab = "profile" | "vacancies" | "cvs" | "applications";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("vacancies");
@@ -18,7 +19,7 @@ export default function App() {
         <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
           <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3">
             <h1 className="font-semibold tracking-tight">Apply</h1>
-            <TabsList>
+            <TabsList className="min-w-0 max-w-full justify-start overflow-x-auto">
               <TabsTrigger value="profile">
                 <UserRound /> Mi perfil
               </TabsTrigger>
@@ -27,6 +28,9 @@ export default function App() {
               </TabsTrigger>
               <TabsTrigger value="cvs">
                 <FileText /> CVs
+              </TabsTrigger>
+              <TabsTrigger value="applications">
+                <Send /> Postulaciones
               </TabsTrigger>
             </TabsList>
             <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
@@ -48,6 +52,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="cvs">
             <CvsPage initialId={openCvId} />
+          </TabsContent>
+          <TabsContent value="applications">
+            <ApplicationsPage />
           </TabsContent>
         </main>
       </Tabs>
