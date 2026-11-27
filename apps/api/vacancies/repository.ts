@@ -2,7 +2,7 @@ import { companies, cvs, matchReports, platforms, vacancies } from "@apply/db";
 import type { Vacancy } from "@apply/shared";
 import { desc, eq } from "drizzle-orm";
 import { upsertCompany } from "../companies/repository.ts";
-import type { Db } from "../db.ts";
+import type { Db, Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
 import type { ManualFields } from "./manual-fields.ts";
 import { resolvePostedAt } from "./posted-at.ts";
@@ -61,6 +61,42 @@ function toVacancy(row: Row): Vacancy {
   };
 }
 
+async function toRow(
+  tx: Executor,
+  input: NewVacancy,
+  createdAt: Date,
+): Promise<typeof vacancies.$inferInsert> {
+  const [platform] = await tx
+    .select({ id: platforms.id })
+    .from(platforms)
+    .where(eq(platforms.slug, input.platform));
+  if (!platform) {
+    throw new Error(`Falta la plataforma '${input.platform}'; corre \`npm run db:migrate\``);
+  }
+  return {
+    platformId: platform.id,
+    source: input.sourceUrl ? "url" : "text",
+    sourceUrl: input.sourceUrl,
+    companyId: await upsertCompany(tx, input.company),
+    title: input.title,
+    description: input.rawText,
+    location: input.location,
+    seniority: input.seniority,
+    language: input.language,
+    summary: input.summary,
+    mustHave: input.mustHave,
+    niceToHave: input.niceToHave,
+    responsibilities: input.responsibilities,
+    keywords: input.keywords,
+    posterName: input.posterName,
+    posterTitle: input.posterTitle,
+    posterProfileUrl: input.posterProfileUrl,
+    postedAt: input.postedAt ? new Date(input.postedAt) : null,
+    postedAtPrecision: input.postedAtPrecision,
+    createdAt,
+  };
+}
+
 export function createVacanciesRepository(db: Db) {
   const select = () =>
     db
@@ -88,38 +124,9 @@ export function createVacanciesRepository(db: Db) {
     /** `createdAt` es también la referencia de las fechas relativas (REQ-002). */
     async create(input: NewVacancy, createdAt = new Date()): Promise<Vacancy> {
       const id = await db.transaction(async (tx) => {
-        const [platform] = await tx
-          .select({ id: platforms.id })
-          .from(platforms)
-          .where(eq(platforms.slug, input.platform));
-        if (!platform) {
-          throw new Error(`Falta la plataforma '${input.platform}'; corre \`npm run db:migrate\``);
-        }
-        const companyId = await upsertCompany(tx, input.company);
         const [row] = await tx
           .insert(vacancies)
-          .values({
-            platformId: platform.id,
-            source: input.sourceUrl ? "url" : "text",
-            sourceUrl: input.sourceUrl,
-            companyId,
-            title: input.title,
-            description: input.rawText,
-            location: input.location,
-            seniority: input.seniority,
-            language: input.language,
-            summary: input.summary,
-            mustHave: input.mustHave,
-            niceToHave: input.niceToHave,
-            responsibilities: input.responsibilities,
-            keywords: input.keywords,
-            posterName: input.posterName,
-            posterTitle: input.posterTitle,
-            posterProfileUrl: input.posterProfileUrl,
-            postedAt: input.postedAt ? new Date(input.postedAt) : null,
-            postedAtPrecision: input.postedAtPrecision,
-            createdAt,
-          })
+          .values(await toRow(tx, input, createdAt))
           .returning({ id: vacancies.id });
         if (!row) throw new Error("No se pudo guardar la vacante");
         return row.id;
@@ -127,6 +134,25 @@ export function createVacanciesRepository(db: Db) {
       const created = await get(formatId(id));
       if (!created) throw new Error("No se pudo leer la vacante guardada");
       return created;
+    },
+
+    /**
+     * Inserta una vacante de `data/` con su id viejo (#14). `skipped` si ese id ya se importó:
+     * repetir la importación no duplica ni pisa lo editado después.
+     */
+    async importLegacy(
+      legacyId: string,
+      input: NewVacancy,
+      createdAt: Date,
+    ): Promise<"imported" | "skipped"> {
+      return db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(vacancies)
+          .values({ ...(await toRow(tx, input, createdAt)), legacyId })
+          .onConflictDoNothing({ target: vacancies.legacyId })
+          .returning({ id: vacancies.id });
+        return rows.length > 0 ? "imported" : "skipped";
+      });
     },
 
     /** Aplica las correcciones manuales (REQ-005); `null` si la vacante no existe. */

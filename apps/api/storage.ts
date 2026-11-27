@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveDataDir } from "./paths.ts";
 import { PROFILE_TEMPLATES } from "./templates.ts";
@@ -6,12 +6,13 @@ import { PROFILE_TEMPLATES } from "./templates.ts";
 export const DATA_DIR = resolveDataDir(process.env.CV_DATA_DIR);
 export const PROFILE_DIR = path.join(DATA_DIR, "profile");
 
-export async function ensureDataDirs(): Promise<void> {
-  await mkdir(PROFILE_DIR, { recursive: true });
-  const existing = await listFiles(PROFILE_DIR, ".md");
+/** Crea el perfil con las plantillas si no tiene ningún `.md`; nunca pisa lo que ya existe. */
+export async function ensureDataDirs(profileDir = PROFILE_DIR): Promise<void> {
+  await mkdir(profileDir, { recursive: true });
+  const existing = await listFiles(profileDir, ".md");
   if (existing.length === 0) {
     for (const [name, content] of Object.entries(PROFILE_TEMPLATES)) {
-      await writeFile(path.join(PROFILE_DIR, name), content, "utf8");
+      await writeFile(path.join(profileDir, name), content, "utf8");
     }
   }
 }
@@ -23,18 +24,6 @@ export async function listFiles(dir: string, ext: string): Promise<string[]> {
   } catch {
     return [];
   }
-}
-
-export async function readJson<T>(file: string): Promise<T | null> {
-  try {
-    return JSON.parse(await readFile(file, "utf8")) as T;
-  } catch {
-    return null;
-  }
-}
-
-export async function writeJson(file: string, data: unknown): Promise<void> {
-  await writeFile(file, JSON.stringify(data, null, 2), "utf8");
 }
 
 export async function mtime(file: string): Promise<number> {
@@ -51,11 +40,6 @@ export function safeName(name: string, ext: string): string {
   const withExt = base.endsWith(ext) ? base : `${base}${ext}`;
   if (withExt === ext || withExt.startsWith(".")) throw new Error("Nombre de archivo inválido");
   return withExt;
-}
-
-export function newId(prefix: string): string {
-  const stamp = new Date().toISOString().slice(0, 10);
-  return `${stamp}-${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export function slugify(text: string): string {

@@ -4,15 +4,14 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DATA_DIR,
+  ensureDataDirs,
   listFiles,
   mtime,
-  newId,
-  readJson,
   removeFile,
   safeName,
   slugify,
-  writeJson,
 } from "./storage.ts";
+import { PROFILE_TEMPLATES } from "./templates.ts";
 
 let dir: string;
 beforeEach(async () => {
@@ -25,6 +24,23 @@ afterEach(async () => {
 describe("DATA_DIR", () => {
   it("resuelve a una ruta absoluta", () => {
     expect(path.isAbsolute(DATA_DIR)).toBe(true);
+  });
+});
+
+describe("ensureDataDirs", () => {
+  it("crea el perfil con las plantillas cuando no tiene ningún .md", async () => {
+    const profile = path.join(dir, "profile");
+    await ensureDataDirs(profile);
+    expect(await listFiles(profile, ".md")).toEqual(Object.keys(PROFILE_TEMPLATES).sort());
+    const [first, content] = Object.entries(PROFILE_TEMPLATES)[0] ?? [];
+    expect(await readFile(path.join(profile, first as string), "utf8")).toBe(content);
+  });
+
+  it("no agrega plantillas ni pisa nada si el perfil ya tiene un .md", async () => {
+    await writeFile(path.join(dir, "mio.md"), "# Mío");
+    await ensureDataDirs(dir);
+    expect(await listFiles(dir, ".md")).toEqual(["mio.md"]);
+    expect(await readFile(path.join(dir, "mio.md"), "utf8")).toBe("# Mío");
   });
 });
 
@@ -48,13 +64,6 @@ describe("safeName", () => {
     expect(() => safeName("", ".md")).toThrow("Nombre de archivo inválido");
     expect(() => safeName(".md", ".md")).toThrow("Nombre de archivo inválido");
     expect(() => safeName(".oculto", ".md")).toThrow("Nombre de archivo inválido");
-  });
-});
-
-describe("newId", () => {
-  it("combina fecha ISO, prefijo y sufijo aleatorio", () => {
-    expect(newId("cv")).toMatch(/^\d{4}-\d{2}-\d{2}-cv-[a-z0-9]{1,6}$/);
-    expect(newId("cv")).not.toBe(newId("cv"));
   });
 });
 
@@ -86,22 +95,6 @@ describe("listFiles", () => {
 
   it("devuelve vacío si el directorio no existe", async () => {
     expect(await listFiles(path.join(dir, "nope"), ".md")).toEqual([]);
-  });
-});
-
-describe("readJson / writeJson", () => {
-  it("hace roundtrip con indentación de 2 espacios", async () => {
-    const file = path.join(dir, "x.json");
-    await writeJson(file, { a: 1, b: [2] });
-    expect(await readFile(file, "utf8")).toBe(JSON.stringify({ a: 1, b: [2] }, null, 2));
-    expect(await readJson(file)).toEqual({ a: 1, b: [2] });
-  });
-
-  it("devuelve null si el archivo no existe o el JSON es inválido", async () => {
-    expect(await readJson(path.join(dir, "no.json"))).toBeNull();
-    const bad = path.join(dir, "bad.json");
-    await writeFile(bad, "{no json");
-    expect(await readJson(bad)).toBeNull();
   });
 });
 

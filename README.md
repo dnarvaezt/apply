@@ -39,7 +39,7 @@ data/
 
 El índice de embeddings vive en la tabla `profile_chunks` de Postgres (pgvector): se reindexa solo el archivo cuyo contenido cambió, o todo si cambia `EMBED_MODEL`. Un `data/index.json` de versiones anteriores ya no se usa y puede borrarse.
 
-Las vacantes (con su empresa normalizada en `companies`) y los CVs viven en Postgres, no en `data/`; la API lee `DATABASE_URL`. El PDF de un CV no se guarda: se regenera en cada descarga. `data/` está en `.gitignore`: tu información no se versiona.
+Las vacantes (con su empresa normalizada en `companies`) y los CVs viven en Postgres, no en `data/`; la API lee `DATABASE_URL`. El PDF de un CV no se guarda: se regenera en cada descarga. Si tienes vacantes y CVs de la versión en archivos (`data/vacancies/*.json`, `data/cvs/*.json` + `*.md`), `npm run db:import` los pasa a Postgres. `data/` está en `.gitignore`: tu información no se versiona.
 
 ## Variables de entorno
 
@@ -75,6 +75,7 @@ npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
 - `npm run db:up` / `npm run db:down`: levanta o detiene Postgres + pgvector (Docker Compose)
 - `npm run db:generate`: `drizzle-kit generate` en `packages/db` (no necesita Postgres)
 - `npm run db:migrate`: aplica las migraciones versionadas de `packages/db/drizzle/` (extensión `vector`, 13 tablas, semilla de `platforms` y `channels`) sobre la base de `DATABASE_URL`; es idempotente
+- `npm run db:import`: importa a Postgres las vacantes y los CVs de `data/` (conserva su id viejo en `legacy_id`, sus fechas y la relación CV → vacante) y reconstruye el índice del perfil. Es idempotente: lo ya importado se cuenta como omitido. No modifica ni borra archivos de `data/`. Imprime los conteos y sale con código 1 si algún archivo no se pudo importar
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
 - `npm test`: Vitest (proyectos `api`, `web`, `db` y `db-integration`; los de integración levantan Postgres efímero con Docker)
