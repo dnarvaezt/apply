@@ -74,6 +74,8 @@ export const vacancies = pgTable(
   "vacancies",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    /** Id del archivo en `data/` antes de Postgres; la importación (#14) hace upsert por él. */
+    legacyId: text("legacy_id").unique(),
     platformId: integer("platform_id")
       .notNull()
       .references(() => platforms.id),
@@ -124,6 +126,8 @@ export const cvs = pgTable(
   "cvs",
   {
     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    /** Id del archivo en `data/` antes de Postgres; la importación (#14) hace upsert por él. */
+    legacyId: text("legacy_id").unique(),
     /** `null` si la vacante se borró: el CV sobrevive sin referencia colgante. */
     vacancyId: integer("vacancy_id").references(() => vacancies.id),
     title: text("title").notNull().default(""),

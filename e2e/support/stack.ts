@@ -1,5 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { startEphemeralPostgres } from "../../packages/db/test/ephemeral-postgres.ts";
+import { E2E_DB_URL_FILE } from "./db-url.ts";
 import { startFakeAnthropic } from "./fake-anthropic.ts";
 
 /**
@@ -8,11 +11,15 @@ import { startFakeAnthropic } from "./fake-anthropic.ts";
  *  - Anthropic falso en la frontera HTTP (`ANTHROPIC_BASE_URL`).
  *  - La API real apuntando a ambos.
  * Variables: PORT (API), E2E_LLM_PORT (Anthropic falso), CV_DATA_DIR (perfil temporal).
+ * La URL de la base queda en `E2E_DB_URL_FILE` para los specs que corren comandos contra ella.
  */
+
 const apiPort = process.env.PORT ?? "3101";
 const llmPort = Number(process.env.E2E_LLM_PORT ?? Number(apiPort) + 1000);
 
 const postgres = await startEphemeralPostgres();
+mkdirSync(path.dirname(E2E_DB_URL_FILE), { recursive: true });
+writeFileSync(E2E_DB_URL_FILE, postgres.url, "utf8");
 const llm = await startFakeAnthropic(llmPort);
 
 const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/api"], {

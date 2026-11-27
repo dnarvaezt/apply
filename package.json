@@ -21,7 +21,8 @@
     "db:up": "docker compose up -d --wait db",
     "db:down": "docker compose down",
     "db:generate": "npm run generate -w @apply/db",
-    "db:migrate": "npm run migrate -w @apply/db"
+    "db:migrate": "npm run migrate -w @apply/db",
+    "db:import": "npm run import -w @apply/api"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",

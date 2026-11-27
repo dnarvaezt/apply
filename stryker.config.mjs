@@ -30,6 +30,8 @@ export default {
         "apps/api/ids.ts",
         "apps/api/companies/normalize.ts",
         "apps/api/applications/status.ts",
+        "apps/api/import/legacy.ts",
+        "apps/api/import/report.ts",
         "apps/web/src/lib/api.ts:1-26",
         "apps/web/src/lib/api/http.ts",
         "apps/web/src/lib/api/cvs.ts",

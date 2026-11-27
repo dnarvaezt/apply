@@ -1,4 +1,4 @@
-import { applications, cvs, matchReports } from "@apply/db";
+import { applications, cvs, matchReports, vacancies } from "@apply/db";
 import type { CvDoc, CvMeta } from "@apply/shared";
 import { desc, eq } from "drizzle-orm";
 import type { Db } from "../db.ts";
@@ -66,6 +66,42 @@ export function createCvsRepository(db: Db) {
         .returning({ ...meta, markdown: cvs.content });
       if (!row) throw new Error("No se pudo guardar el CV");
       return { ...toMeta(row), markdown: row.markdown };
+    },
+
+    /**
+     * Inserta un CV de `data/` con su id viejo y sus fechas (#14). `skipped` si ese id ya se
+     * importó. `vacancyLegacyId` sin vacante importada deja el CV sin vacante, como al borrarla.
+     */
+    async importLegacy(cv: {
+      legacyId: string;
+      vacancyLegacyId: string | null;
+      title: string;
+      markdown: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }): Promise<"imported" | "skipped"> {
+      const [vacancy] =
+        cv.vacancyLegacyId === null
+          ? []
+          : await db
+              .select({ id: vacancies.id, language: vacancies.language })
+              .from(vacancies)
+              .where(eq(vacancies.legacyId, cv.vacancyLegacyId));
+      const rows = await db
+        .insert(cvs)
+        .values({
+          legacyId: cv.legacyId,
+          vacancyId: vacancy?.id ?? null,
+          title: cv.title,
+          content: cv.markdown,
+          // Los archivos no guardaban el idioma del CV: se hereda de su vacante.
+          language: vacancy?.language ?? "es",
+          createdAt: cv.createdAt,
+          updatedAt: cv.updatedAt,
+        })
+        .onConflictDoNothing({ target: cvs.legacyId })
+        .returning({ id: cvs.id });
+      return rows.length > 0 ? "imported" : "skipped";
     },
 
     /** `null` si el CV no existe. Un título vacío conserva el actual. */
