@@ -14,8 +14,22 @@ export async function runMigrations(url: string): Promise<void> {
   }
 }
 
-/** Punto de entrada de `npm run db:migrate`: lee `DATABASE_URL`. */
+/** `.env` de la raíz del repo, el mismo que lee la API; `APPLY_ENV_FILE` lo reemplaza. */
+const ENV_FILE = process.env.APPLY_ENV_FILE ?? path.resolve(import.meta.dirname, "../../.env");
+
+/** Carga el `.env` si existe; las variables ya definidas en el entorno tienen prioridad. */
+function loadEnvFile(file: string): void {
+  try {
+    process.loadEnvFile(file);
+  } catch (error) {
+    const missing = error instanceof Error && "code" in error && error.code === "ENOENT";
+    if (!missing) throw error;
+  }
+}
+
+/** Punto de entrada de `npm run db:migrate`: lee `DATABASE_URL` del entorno o del `.env`. */
 async function main(): Promise<void> {
+  loadEnvFile(ENV_FILE);
   const url = process.env.DATABASE_URL;
   if (url === undefined || url === "") {
     throw new Error("DATABASE_URL no está definida; db:migrate no sabe a qué base conectarse.");

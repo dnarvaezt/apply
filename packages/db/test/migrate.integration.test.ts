@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -68,9 +70,33 @@ describe("npm run db:migrate sobre una base vacía (AC-001)", () => {
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
   });
 
-  it("falla con exit distinto de 0 si falta DATABASE_URL", () => {
+  it("lee DATABASE_URL del archivo .env si el entorno no la trae", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "apply-migrate-env-"));
+    const envFile = path.join(dir, ".env");
+    writeFileSync(envFile, `DATABASE_URL=${urlFor(target)}\n`);
     const { DATABASE_URL: _omit, ...env } = process.env;
-    const result = spawnSync("npm", ["run", "db:migrate"], { cwd: root, env, encoding: "utf8" });
+    try {
+      const result = spawnSync("npm", ["run", "db:migrate"], {
+        cwd: root,
+        env: { ...env, APPLY_ENV_FILE: envFile },
+        encoding: "utf8",
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("falla con exit distinto de 0 si falta DATABASE_URL en el entorno y en el .env", () => {
+    const { DATABASE_URL: _omit, ...env } = process.env;
+    // Un .env inexistente: nunca el del repo, que apunta a la base de desarrollo del usuario.
+    const missing = path.join(tmpdir(), "apply-migrate-sin-env", ".env");
+    const result = spawnSync("npm", ["run", "db:migrate"], {
+      cwd: root,
+      env: { ...env, APPLY_ENV_FILE: missing },
+      encoding: "utf8",
+    });
     expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("DATABASE_URL no está definida");
   });
 });
