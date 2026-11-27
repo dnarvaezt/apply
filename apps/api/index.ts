@@ -17,6 +17,8 @@ import { fetchVacancyText } from "./fetch-url.ts";
 import { cleanMarkdown, draftApplicationEmail, extractVacancy, MODEL, streamCv } from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
 import { createCvMatcher } from "./match-reports/service.ts";
+import { createMetricsRepository } from "./metrics/repository.ts";
+import { metricRoutes } from "./metrics/routes.ts";
 import { ENV_FILE } from "./paths.ts";
 import { closeBrowser, markdownToPdf } from "./pdf.ts";
 import { EMBED_MODEL, embed } from "./rag/embed.ts";
@@ -113,6 +115,7 @@ app.route(
 );
 app.route("/", applicationRoutes({ repo: createApplicationsRepository(getDb()) }));
 app.route("/", contactRoutes({ repo: createContactsRepository(getDb()) }));
+app.route("/", metricRoutes({ repo: createMetricsRepository(getDb()) }));
 app.route(
   "/",
   emailDraftRoutes({

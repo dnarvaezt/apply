@@ -1,13 +1,14 @@
-import { Briefcase, FileText, Send, UserRound } from "lucide-react";
+import { BarChart3, Briefcase, FileText, Send, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApplicationsPage } from "@/features/applications/applications-page";
 import { CvsPage } from "@/features/cvs/cvs-page";
+import { MetricsPage } from "@/features/metrics/metrics-page";
 import { ProfilePage } from "@/features/profile/profile-page";
 import { VacanciesPage } from "@/features/vacancies/vacancies-page";
 
-type Tab = "profile" | "vacancies" | "cvs" | "applications";
+type Tab = "profile" | "vacancies" | "cvs" | "applications" | "metrics";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("vacancies");
@@ -32,6 +33,9 @@ export default function App() {
               <TabsTrigger value="applications">
                 <Send /> Postulaciones
               </TabsTrigger>
+              <TabsTrigger value="metrics">
+                <BarChart3 /> Métricas
+              </TabsTrigger>
             </TabsList>
             <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
               Todo se guarda en local en <code>./data</code>
@@ -55,6 +59,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="applications">
             <ApplicationsPage />
+          </TabsContent>
+          <TabsContent value="metrics">
+            <MetricsPage />
           </TabsContent>
         </main>
       </Tabs>
