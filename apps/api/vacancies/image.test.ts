@@ -22,21 +22,28 @@ describe("parseVacancyImage (REQ-001, REQ-005, REQ-006)", () => {
   });
 
   it.each([
-    ["image/gif", b64(10)],
-    ["application/pdf", b64(10)],
-    [42, b64(10)],
-    ["image/png", "no es base64!"],
-    ["image/png", "abc"],
-    ["image/png", "ab=c"],
-    ["image/png", ""],
-    ["image/png", 5],
-  ])("responde 400 con mediaType %j y data %j", (mediaType, data) => {
-    const r = parseVacancyImage({ mediaType, data });
-    expect(r).toMatchObject({ ok: false, status: 400 });
+    ["image/gif", b64(10), /PNG, JPEG o WebP/],
+    ["application/pdf", b64(10), /PNG, JPEG o WebP/],
+    [42, b64(10), /PNG, JPEG o WebP/],
+    ["image/png", "no es base64!", /base64/],
+    ["image/png", "abc", /base64/],
+    ["image/png", "ab=c", /base64/],
+    ["image/png", "", /base64/],
+    ["image/png", 5, /base64/],
+  ])("responde 400 con mediaType %j y data %j", (mediaType, data, message) => {
+    expect(parseVacancyImage({ mediaType, data })).toEqual({
+      ok: false,
+      status: 400,
+      error: expect.stringMatching(message),
+    });
   });
 
   it.each([null, undefined, "x", [], 3])("responde 400 si image es %j", (image) => {
-    expect(parseVacancyImage(image)).toMatchObject({ ok: false, status: 400 });
+    expect(parseVacancyImage(image)).toEqual({
+      ok: false,
+      status: 400,
+      error: expect.stringMatching(/\{ mediaType, data \}/),
+    });
   });
 
   it("distingue los mensajes de tipo y de base64", () => {
