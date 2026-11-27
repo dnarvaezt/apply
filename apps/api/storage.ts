@@ -51,3 +51,9 @@ export function slugify(text: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 40);
 }
+
+/** Nombre del PDF de un CV: `CV-<persona>-<título>.pdf`, igual al descargar y al enviarlo (#21). */
+export function cvPdfFilename(markdown: string, title: string): string {
+  const name = markdown.match(/^#\s+(.+)$/m)?.[1] ?? "CV";
+  return `CV-${slugify(name)}-${slugify(title)}.pdf`;
+}

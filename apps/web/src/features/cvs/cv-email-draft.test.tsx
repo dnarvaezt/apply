@@ -17,6 +17,8 @@ const DRAFT: EmailDraft = {
   body: "Hola Laura,\n\nMe postulo.",
   language: "es",
   status: "draft",
+  sentAt: null,
+  applicationId: null,
   createdAt: "2026-11-27T10:00:00.000Z",
   updatedAt: "2026-11-27T10:00:00.000Z",
 };

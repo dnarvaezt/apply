@@ -1,14 +1,18 @@
 import { Loader2, Mail, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailDraftForm } from "./email-draft-form";
+import { EmailSendPanel } from "./email-send-panel";
 import { useEmailDraft } from "./use-email-draft";
 
 const REGENERATE_CONFIRM = "Regenerar reemplaza el asunto y el cuerpo actuales. ¿Regenerar?";
 
-/** Correo de postulación del CV abierto (#19): se genera con Claude, se edita y se guarda. */
+/** Correo de postulación del CV abierto: se genera con Claude y se edita (#19), se envía con Gmail (#21). */
 export function CvEmailDraft({ cvId }: { cvId: string }) {
-  const { load, busy, error, saved, reload, generate, save } = useEmailDraft(cvId);
+  const { load, busy, error, saved, reload, generate, save, send, resolve } = useEmailDraft(cvId);
+  /** Versión del borrador con cambios sin guardar: guardar crea otra versión y limpia el aviso. */
+  const [dirtyVersion, setDirtyVersion] = useState<string | null>(null);
   const generating = busy === "generating";
 
   if (load.state === "loading") {
@@ -29,12 +33,14 @@ export function CvEmailDraft({ cvId }: { cvId: string }) {
 
   const { draft } = load;
   const icon = generating ? <Loader2 className="animate-spin" /> : null;
+  const version = draft ? `${draft.id}-${draft.updatedAt}` : null;
+  const editable = draft?.status === "draft" || draft?.status === "failed";
 
   return (
     <Card size="sm" data-id="cv-email-draft">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>Correo de postulación</CardTitle>
-        {draft && (
+        {draft?.status === "draft" && (
           <Button
             variant="outline"
             size="sm"
@@ -57,12 +63,22 @@ export function CvEmailDraft({ cvId }: { cvId: string }) {
             </Button>
           </div>
         )}
-        {draft && (
+        {draft && editable && (
           <EmailDraftForm
-            key={`${draft.id}-${draft.updatedAt}`}
+            key={version}
             draft={draft}
             saving={busy === "saving"}
             onSave={(changes) => void save(draft.id, changes)}
+            onDirtyChange={(dirty) => setDirtyVersion(dirty ? version : null)}
+          />
+        )}
+        {draft && (
+          <EmailSendPanel
+            draft={draft}
+            dirty={dirtyVersion !== null && dirtyVersion === version}
+            sending={busy === "sending"}
+            onSend={() => void send(draft.id)}
+            onResolve={(sent) => void resolve(draft.id, sent)}
           />
         )}
         {error && (

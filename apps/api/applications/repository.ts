@@ -11,7 +11,7 @@ import type {
 } from "@apply/shared";
 import { asc, desc, eq } from "drizzle-orm";
 import { isLinked, listApplicationContacts } from "../contacts/repository.ts";
-import type { Db, Executor } from "../db.ts";
+import type { Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
 import { canRecord, isActive, isClassifying, isTerminal, next } from "./status.ts";
 
@@ -28,6 +28,8 @@ export interface NewApplication {
   channel?: string | null;
   source: EventSource;
   notes?: string | null;
+  /** Mensaje de Gmail que originó la postulación (envío automático, #21). */
+  gmailMessageId?: string | null;
 }
 
 export interface NewEvent {
@@ -184,7 +186,7 @@ async function recordEvent(
   return { event, application: toApplication(updated), duplicate: false };
 }
 
-export function createApplicationsRepository(db: Db) {
+export function createApplicationsRepository(db: Executor) {
   return {
     /** `null` si la vacante no existe. Crea la postulación con su evento `applied` (REQ-002). */
     async create(input: NewApplication): Promise<Application | null> {
@@ -216,6 +218,7 @@ export function createApplicationsRepository(db: Db) {
           channel: input.channel,
           source: input.source,
           notes: input.notes,
+          gmailMessageId: input.gmailMessageId,
         });
         if (!result) throw new Error("No se pudo registrar el evento applied");
         return result.application;

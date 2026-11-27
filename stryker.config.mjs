@@ -44,6 +44,7 @@ export default {
         "apps/web/src/lib/api/metrics.ts",
         "apps/web/src/lib/api/email-drafts.ts",
         "apps/api/emails/draft.ts",
+        "apps/api/emails/mime.ts",
         "apps/web/src/lib/api/gmail.ts",
         "apps/api/gmail/config.ts",
         "apps/api/gmail/loopback.ts",

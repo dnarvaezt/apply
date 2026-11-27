@@ -235,4 +235,17 @@ describe("api.emailDrafts", () => {
       JSON.stringify({ to: "ana@example.com", subject: "S", body: "B" }),
     );
   });
+
+  it("envía con la confirmación explícita y resuelve un envío sin confirmar (#21)", async () => {
+    const fetchMock = stubFetch(() => jsonResponse(null));
+    await api.emailDrafts.send("e 1");
+    await api.emailDrafts.resolve("e1", false);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
+      "POST /api/email-drafts/e%201/send",
+      "POST /api/email-drafts/e1/resolve",
+    ]);
+    expect(calls[0][1]?.body).toBe(JSON.stringify({ confirmed: true }));
+    expect(calls[1][1]?.body).toBe(JSON.stringify({ sent: false }));
+  });
 });

@@ -13,6 +13,8 @@ import { cvRoutes } from "./cvs/routes.ts";
 import { closeDb, getDb } from "./db.ts";
 import { createEmailDraftsRepository } from "./emails/repository.ts";
 import { emailDraftRoutes } from "./emails/routes.ts";
+import { createEmailSender } from "./emails/send.ts";
+import { emailSendRoutes } from "./emails/send-routes.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
 import { readGmailConfig } from "./gmail/config.ts";
 import { createGmailConnection } from "./gmail/connection.ts";
@@ -137,6 +139,17 @@ const gmail =
   gmailConfig &&
   createGmailConnection({ config: gmailConfig, store: createTokenStore(gmailConfig.tokenDir) });
 app.route("/", gmailRoutes({ gmail }));
+app.route(
+  "/",
+  emailSendRoutes({
+    sender: createEmailSender({
+      repo: createEmailDraftsRepository(getDb()),
+      gmail,
+      getCv: (id) => cvsRepo.get(id),
+      renderPdf: markdownToPdf,
+    }),
+  }),
+);
 
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, () => {

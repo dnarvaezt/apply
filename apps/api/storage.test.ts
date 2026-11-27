@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  cvPdfFilename,
   DATA_DIR,
   ensureDataDirs,
   listFiles,
@@ -82,6 +83,18 @@ describe("slugify", () => {
 
   it("devuelve vacío si no queda nada", () => {
     expect(slugify("!!!")).toBe("");
+  });
+});
+
+describe("cvPdfFilename", () => {
+  it("usa el nombre del primer encabezado y el título del CV", () => {
+    expect(cvPdfFilename("intro\n# Ana Pérez\n## Experiencia", "Backend Señor")).toBe(
+      "CV-ana-perez-backend-senor.pdf",
+    );
+  });
+
+  it("sin encabezado usa CV como nombre", () => {
+    expect(cvPdfFilename("sin título", "Backend")).toBe("CV-cv-backend.pdf");
   });
 });
 

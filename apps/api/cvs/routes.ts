@@ -8,7 +8,7 @@ import type {
 } from "@apply/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { slugify } from "../storage.ts";
+import { cvPdfFilename } from "../storage.ts";
 import type { CvsRepository } from "./repository.ts";
 
 export interface CvRoutesDeps {
@@ -103,12 +103,12 @@ export function cvRoutes({
       const cv = await repo.get(c.req.param("id"));
       if (!cv) return c.json(NOT_FOUND, 404);
       const pdf = await renderPdf(cv.markdown, cv.title);
-
-      const name = cv.markdown.match(/^#\s+(.+)$/m)?.[1] ?? "CV";
-      const filename = `CV-${slugify(name)}-${slugify(cv.title)}.pdf`;
+      const filename = cvPdfFilename(cv.markdown, cv.title);
+      // `inline` lo muestra en la vista previa antes de enviarlo (#21); si no, se descarga.
+      const disposition = c.req.query("inline") === "1" ? "inline" : "attachment";
       return c.body(pdf as Uint8Array<ArrayBuffer>, 200, {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `${disposition}; filename="${filename}"`,
       });
     });
 }

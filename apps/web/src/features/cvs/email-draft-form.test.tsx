@@ -14,6 +14,8 @@ const draft = (overrides: Partial<EmailDraft> = {}): EmailDraft => ({
   body: "Hola Laura,\n\nMe postulo.",
   language: "es",
   status: "draft",
+  sentAt: null,
+  applicationId: null,
   createdAt: "2026-11-27T10:00:00.000Z",
   updatedAt: "2026-11-27T10:00:00.000Z",
   ...overrides,
@@ -25,7 +27,9 @@ const saveButton = () =>
 
 describe("EmailDraftForm (REQ-003, REQ-004)", () => {
   it("muestra destinatario, asunto y cuerpo del borrador", () => {
-    render(<EmailDraftForm draft={draft()} saving={false} onSave={vi.fn()} />);
+    render(
+      <EmailDraftForm draft={draft()} saving={false} onSave={vi.fn()} onDirtyChange={vi.fn()} />,
+    );
     expect(field("Para").value).toBe("jobs@acme.com");
     expect(field("Asunto").value).toBe("Postulación Backend");
     expect(field("Cuerpo").value).toBe("Hola Laura,\n\nMe postulo.");
@@ -33,7 +37,14 @@ describe("EmailDraftForm (REQ-003, REQ-004)", () => {
   });
 
   it("sin destinatario lo indica junto al campo, sin inventar uno", () => {
-    render(<EmailDraftForm draft={draft({ to: null })} saving={false} onSave={vi.fn()} />);
+    render(
+      <EmailDraftForm
+        draft={draft({ to: null })}
+        saving={false}
+        onSave={vi.fn()}
+        onDirtyChange={vi.fn()}
+      />,
+    );
     expect(field("Para").value).toBe("");
     const notice = screen.getByText(/Falta el destinatario/);
     expect(field("Para").getAttribute("aria-describedby")).toBe(notice.id);
@@ -43,7 +54,14 @@ describe("EmailDraftForm (REQ-003, REQ-004)", () => {
 
   it("guarda solo con cambios y envía los campos editados", () => {
     const onSave = vi.fn();
-    render(<EmailDraftForm draft={draft({ to: null })} saving={false} onSave={onSave} />);
+    render(
+      <EmailDraftForm
+        draft={draft({ to: null })}
+        saving={false}
+        onSave={onSave}
+        onDirtyChange={vi.fn()}
+      />,
+    );
     expect(saveButton().disabled).toBe(true);
     fireEvent.change(field("Asunto"), { target: { value: "Asunto editado" } });
     expect(screen.getByText("sin guardar")).toBeTruthy();
@@ -55,8 +73,25 @@ describe("EmailDraftForm (REQ-003, REQ-004)", () => {
     });
   });
 
+  it("avisa en cada edición si los campos difieren de lo guardado (#21)", () => {
+    const onDirtyChange = vi.fn();
+    render(
+      <EmailDraftForm
+        draft={draft()}
+        saving={false}
+        onSave={vi.fn()}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+    fireEvent.change(field("Asunto"), { target: { value: "Otro" } });
+    fireEvent.change(field("Asunto"), { target: { value: "Postulación Backend" } });
+    expect(onDirtyChange.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("no deja guardar mientras se guarda ni con asunto o cuerpo vacíos", () => {
-    const { rerender } = render(<EmailDraftForm draft={draft()} saving={false} onSave={vi.fn()} />);
+    const { rerender } = render(
+      <EmailDraftForm draft={draft()} saving={false} onSave={vi.fn()} onDirtyChange={vi.fn()} />,
+    );
     fireEvent.change(field("Asunto"), { target: { value: "   " } });
     expect(saveButton().disabled).toBe(true);
     fireEvent.change(field("Asunto"), { target: { value: "Otro" } });
@@ -64,7 +99,7 @@ describe("EmailDraftForm (REQ-003, REQ-004)", () => {
     fireEvent.change(field("Cuerpo"), { target: { value: "" } });
     expect(saveButton().disabled).toBe(true);
     fireEvent.change(field("Cuerpo"), { target: { value: "Texto" } });
-    rerender(<EmailDraftForm draft={draft()} saving onSave={vi.fn()} />);
+    rerender(<EmailDraftForm draft={draft()} saving onSave={vi.fn()} onDirtyChange={vi.fn()} />);
     expect(saveButton().disabled).toBe(true);
   });
 });
