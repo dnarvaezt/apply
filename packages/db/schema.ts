@@ -149,11 +149,16 @@ export const matchReports = pgTable(
     vacancyId: integer("vacancy_id")
       .notNull()
       .references(() => vacancies.id),
+    /** Cobertura ponderada de `mustHave` (D6); no hay puntaje global combinado. */
     score: real("score").notNull(),
     summary: text("summary"),
     model: text("model").notNull(),
     embedModel: text("embed_model").notNull(),
     weights: jsonb("weights").notNull(),
+    /** sha256 del Markdown medido: un informe vale solo para ese contenido exacto del CV. */
+    cvHash: text("cv_hash").notNull(),
+    /** Niveles por requisito con su evidencia y la cobertura de keywords. */
+    report: jsonb("report").notNull(),
     createdAt: createdAt(),
   },
   (t) => [index("match_reports_cv_id_idx").on(t.cvId)],

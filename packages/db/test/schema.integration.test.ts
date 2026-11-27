@@ -370,8 +370,8 @@ describe("esquema real contra Postgres + pgvector", () => {
     );
     const cvId = Number([...cvRows][0]?.id);
     await db.execute(
-      sql`INSERT INTO match_reports (cv_id, vacancy_id, score, summary, model, embed_model, weights)
-          VALUES (${cvId}, ${vacancy.id}, 0.8, 'ok', 'claude', 'minilm', ${JSON.stringify({ skills: 0.6, seniority: 0.4 })}::jsonb)`,
+      sql`INSERT INTO match_reports (cv_id, vacancy_id, score, summary, model, embed_model, weights, cv_hash, report)
+          VALUES (${cvId}, ${vacancy.id}, 0.8, 'ok', 'claude', 'minilm', ${JSON.stringify({ skills: 0.6, seniority: 0.4 })}::jsonb, 'h', '{}'::jsonb)`,
     );
     const rows = await db.execute(sql`SELECT model, embed_model, weights FROM match_reports`);
     expect([...rows][0]).toMatchObject({
@@ -382,7 +382,7 @@ describe("esquema real contra Postgres + pgvector", () => {
     expect(
       await rejection(
         db.execute(
-          sql`INSERT INTO match_reports (cv_id, vacancy_id, score, summary, model, embed_model, weights) VALUES (99999, ${vacancy.id}, 0.5, 's', 'm', 'e', '{}'::jsonb)`,
+          sql`INSERT INTO match_reports (cv_id, vacancy_id, score, summary, model, embed_model, weights, cv_hash, report) VALUES (99999, ${vacancy.id}, 0.5, 's', 'm', 'e', '{}'::jsonb, 'h', '{}'::jsonb)`,
         ),
       ),
     ).toMatch(/foreign key|violates/i);

@@ -28,9 +28,3 @@ export async function embed(texts: string[], kind: "query" | "passage"): Promise
   }
   return vectors;
 }
-
-export function cosine(a: number[], b: number[]): number {
-  let dot = 0;
-  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
-  return dot;
-}

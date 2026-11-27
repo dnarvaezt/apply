@@ -43,6 +43,13 @@
       "when": 1795735866752,
       "tag": "0005_legacy_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795740936231,
+      "tag": "0006_match_report_details",
+      "breakpoints": true
     }
   ]
 }

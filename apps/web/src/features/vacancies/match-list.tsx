@@ -1,11 +1,6 @@
-import type { MatchLevel, RequirementMatch } from "@apply/shared";
+import type { RequirementMatch } from "@apply/shared";
+import { LEVEL_STYLE } from "@/components/level-style";
 import { Badge } from "@/components/ui/badge";
-
-const LEVEL_STYLE: Record<MatchLevel, string> = {
-  fuerte: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  parcial: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
-  débil: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-};
 
 export function MatchList({
   title,

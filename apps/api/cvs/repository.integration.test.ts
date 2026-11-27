@@ -113,6 +113,8 @@ describe("borrar un CV no deja filas huérfanas (REQ-006)", () => {
       model: "m",
       embedModel: "e",
       weights: {},
+      cvHash: "h",
+      report: {},
     });
 
     await cvs.remove(cv.id);

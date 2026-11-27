@@ -1,4 +1,4 @@
-import type { CvDoc, CvMeta } from "@apply/shared";
+import type { CvDoc, CvMatchReport, CvMeta } from "@apply/shared";
 import { Copy, FileDown, FileText, Loader2, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api, download } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { CvMatchPanel } from "./cv-match-panel";
 
 export function CvsPage({ initialId }: { initialId: string | null }) {
   const [list, setList] = useState<CvMeta[]>([]);
@@ -18,19 +19,32 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
   const [markdown, setMarkdown] = useState("");
   const [title, setTitle] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [match, setMatch] = useState<CvMatchReport | null>(null);
 
   const dirty = cv !== null && (markdown !== cv.markdown || title !== cv.title);
 
-  const open = useCallback(async (id: string) => {
-    try {
-      const doc = await api.cvs.get(id);
-      setCv(doc);
-      setMarkdown(doc.markdown);
-      setTitle(doc.title);
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+  const loadMatch = useCallback((id: string) => {
+    setMatch(null);
+    api.cvs
+      .match(id)
+      .then(setMatch)
+      .catch((e: Error) => toast.error(`Cobertura: ${e.message}`));
   }, []);
+
+  const open = useCallback(
+    async (id: string) => {
+      try {
+        const doc = await api.cvs.get(id);
+        setCv(doc);
+        setMarkdown(doc.markdown);
+        setTitle(doc.title);
+        loadMatch(doc.id);
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
+    },
+    [loadMatch],
+  );
 
   useEffect(() => {
     api.cvs
@@ -49,6 +63,7 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
       const updated = await api.cvs.save(cv.id, markdown, title);
       setCv(updated);
       setList((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      loadMatch(updated.id);
       return updated;
     } catch (e) {
       toast.error((e as Error).message);
@@ -75,6 +90,7 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
     const rest = list.filter((m) => m.id !== cv.id);
     setList(rest);
     setCv(null);
+    setMatch(null);
     if (rest[0]) void open(rest[0].id);
   }
 
@@ -181,6 +197,7 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
               <CvPreview markdown={markdown} />
             </div>
           </div>
+          {match?.cvId === cv.id && <CvMatchPanel report={match} />}
         </div>
       )}
     </div>
