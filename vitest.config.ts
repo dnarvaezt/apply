@@ -54,6 +54,7 @@ export default defineConfig({
         "apps/api/match-reports/calibrate.ts",
         "apps/api/storage.ts",
         "apps/api/fetch-url.ts",
+        "apps/api/claude/cli.ts",
         "apps/api/paths.ts",
         "apps/api/ids.ts",
         "apps/api/companies/normalize.ts",

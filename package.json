@@ -18,6 +18,7 @@
     "mutation": "stryker run",
     "mut:smoke": "MUTATION_SMOKE=1 stryker run && node scripts/check-smoke.mjs",
     "e2e": "playwright test",
+    "claude:smoke": "npm run claude:smoke -w @apply/api",
     "db:up": "docker compose up -d --wait db",
     "db:down": "docker compose down",
     "db:generate": "npm run generate -w @apply/db",

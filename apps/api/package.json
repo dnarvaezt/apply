@@ -7,7 +7,8 @@
     "dev": "tsx watch --clear-screen=false index.ts",
     "start": "tsx index.ts",
     "import": "tsx import/cli.ts",
-    "match:calibrate": "tsx match-reports/calibrate-cli.ts"
+    "match:calibrate": "tsx match-reports/calibrate-cli.ts",
+    "claude:smoke": "tsx claude/smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.14.0",

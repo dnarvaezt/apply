@@ -1,10 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { RetrievedChunk, Vacancy } from "@apply/shared";
 import { z } from "zod";
+import { runClaudeStructured } from "./claude/runner.ts";
 
 /**
- * Credenciales: ANTHROPIC_API_KEY (en .env) o un perfil de `ant auth login`.
+ * Solo `streamCv` usa todavía el SDK (se migra en #54). La extracción de la vacante y el correo
+ * van por la CLI `claude -p` (ver claude/runner.ts).
+ * Credenciales del SDK: ANTHROPIC_API_KEY (en .env) o un perfil de `ant auth login`.
  * Fallbacks del lado del servidor activados: si el modelo rechaza por política,
  * la API reintenta automáticamente con el modelo de respaldo por defecto.
  */
@@ -47,27 +49,20 @@ const VacancySchema = z.object({
 
 export type ExtractedVacancy = z.infer<typeof VacancySchema>;
 
-/** `api` es la frontera con Anthropic; las pruebas pasan un cliente con `fetch` de fixture. */
-export async function extractVacancy(
-  rawText: string,
-  api: Pick<Anthropic, "beta"> = client,
-): Promise<ExtractedVacancy> {
-  const response = await api.beta.messages.parse({
-    model: MODEL,
-    max_tokens: 16000,
-    betas: BETAS,
-    fallbacks: "default",
-    output_config: { effort: "low", format: betaZodOutputFormat(VacancySchema) },
-    system:
-      "Extraes información estructurada de ofertas de empleo. Sé fiel al texto: no inventes requisitos. " +
-      "Divide requisitos compuestos en elementos atómicos (p. ej. 'React y TypeScript' → dos elementos). " +
-      "Ignora texto irrelevante de la página (menús, cookies, otras ofertas). " +
-      "Si un dato (quién publicó, su cargo, la fecha de publicación) no aparece, usa null: no lo deduzcas.",
-    messages: [{ role: "user", content: `<vacante>\n${rawText}\n</vacante>` }],
+const VACANCY_SYSTEM =
+  "Extraes información estructurada de ofertas de empleo. Sé fiel al texto: no inventes requisitos. " +
+  "Divide requisitos compuestos en elementos atómicos (p. ej. 'React y TypeScript' → dos elementos). " +
+  "Ignora texto irrelevante de la página (menús, cookies, otras ofertas). " +
+  "Si un dato (quién publicó, su cargo, la fecha de publicación) no aparece, usa null: no lo deduzcas.";
+
+/** La frontera es el binario `claude` local (`CLAUDE_BIN`); las pruebas usan un binario falso. */
+export function extractVacancy(rawText: string): Promise<ExtractedVacancy> {
+  return runClaudeStructured({
+    schema: VacancySchema,
+    system: VACANCY_SYSTEM,
+    prompt: `<vacante>\n${rawText}\n</vacante>`,
+    what: "la vacante estructurada",
   });
-  if (response.stop_reason === "refusal") throw new Error("El modelo rechazó procesar la vacante.");
-  if (!response.parsed_output) throw new Error("No se pudo interpretar la vacante.");
-  return response.parsed_output;
 }
 
 const CV_SYSTEM = `Eres un experto en redacción de CVs y sistemas ATS. Escribes un CV en Markdown adaptado a una vacante concreta, usando EXCLUSIVAMENTE la información del perfil del candidato que se te entrega (fragmentos recuperados de su base de conocimiento).
@@ -192,34 +187,23 @@ const EMAIL_SYSTEM = `Redactas el correo con el que un candidato envía su CV a 
 - No escribas el saludo inicial (se agrega aparte con el nombre de quien publicó la vacante). Cierra con la firma usando el nombre del CV.
 - Escribe en el idioma indicado; el campo language debe ser ese idioma.`;
 
-/** Borrador del correo de postulación (D7): `messages.parse` + zod, sin streaming. */
-export async function draftApplicationEmail(
-  input: { vacancy: Vacancy; cvMarkdown: string },
-  api: Pick<Anthropic, "beta"> = client,
-): Promise<DraftedEmail> {
+/** Borrador del correo de postulación (D7): salida estructurada de `claude -p`, validada con zod. */
+export async function draftApplicationEmail(input: {
+  vacancy: Vacancy;
+  cvMarkdown: string;
+}): Promise<DraftedEmail> {
   const { vacancy } = input;
-  const response = await api.beta.messages.parse({
-    model: MODEL,
-    max_tokens: 16000,
-    betas: BETAS,
-    fallbacks: "default",
-    output_config: { effort: "low", format: betaZodOutputFormat(EmailSchema) },
+  const email = await runClaudeStructured({
+    schema: EmailSchema,
     system: EMAIL_SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: [
-          `<vacante>\n${formatVacancy(vacancy)}\n</vacante>`,
-          `Quien publicó la vacante: ${vacancy.posterName ?? "desconocido"}`,
-          `<cv>\n${input.cvMarkdown}\n</cv>`,
-          `Idioma del correo: ${vacancy.language}`,
-        ].join("\n\n"),
-      },
-    ],
+    prompt: [
+      `<vacante>\n${formatVacancy(vacancy)}\n</vacante>`,
+      `Quien publicó la vacante: ${vacancy.posterName ?? "desconocido"}`,
+      `<cv>\n${input.cvMarkdown}\n</cv>`,
+      `Idioma del correo: ${vacancy.language}`,
+    ].join("\n\n"),
+    what: "el correo estructurado",
   });
-  if (response.stop_reason === "refusal") throw new Error("El modelo rechazó redactar el correo.");
-  const email = response.parsed_output;
-  if (!email) throw new Error("No se pudo interpretar el correo redactado.");
   if (email.language !== vacancy.language) {
     throw new Error(`El correo llegó en otro idioma (${email.language}) que la vacante.`);
   }

@@ -6,11 +6,13 @@ import { startFakeGoogle } from "../../apps/api/test/fake-google.ts";
 import { startEphemeralPostgres } from "../../packages/db/test/ephemeral-postgres.ts";
 import { E2E_DB_URL_FILE } from "./db-url.ts";
 import { startFakeAnthropic } from "./fake-anthropic.ts";
+import { FAKE_CLAUDE_ENV } from "./fake-claude.ts";
 
 /**
  * Backend del E2E, un solo proceso para que Playwright lo arranque y lo apague:
  *  - Postgres efímero (Testcontainers) con migraciones; nunca la base `apply` de desarrollo.
- *  - Anthropic falso en la frontera HTTP (`ANTHROPIC_BASE_URL`).
+ *  - `claude` falso (`CLAUDE_BIN`) para extraer la vacante y redactar el correo.
+ *  - Anthropic falso en la frontera HTTP (`ANTHROPIC_BASE_URL`), solo para el CV hasta #54.
  *  - Google falso (OAuth + Gmail) y un `APPLY_CONFIG_DIR` temporal fuera del repo: nunca toca
  *    la cuenta ni los tokens reales del usuario.
  *  - La API real apuntando a ambos.
@@ -37,6 +39,7 @@ const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/api"], {
     ...process.env,
     PORT: apiPort,
     DATABASE_URL: postgres.url,
+    ...FAKE_CLAUDE_ENV,
     ANTHROPIC_BASE_URL: `http://127.0.0.1:${llmPort}`,
     ANTHROPIC_API_KEY: "e2e-clave-falsa",
     GOOGLE_CLIENT_ID: "e2e-cliente.apps.googleusercontent.com",

@@ -2,11 +2,11 @@ import { outboundEmails } from "@apply/db";
 import { EMAIL_STATUSES, type EmailDraft } from "@apply/shared";
 import { eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createCvsRepository } from "../cvs/repository.ts";
 import { draftApplicationEmail } from "../llm.ts";
-import { fixtureAnthropic } from "../test/anthropic-fixture.ts";
+import { useFakeClaude } from "../test/fake-claude.ts";
 import { newVacancy } from "../test/fixtures.ts";
 import { createIsolatedDb, type IsolatedDb } from "../test/test-db.ts";
 import { createVacanciesRepository } from "../vacancies/repository.ts";
@@ -38,8 +38,12 @@ let iso: IsolatedDb;
 let app: Hono;
 let cvs: ReturnType<typeof createCvsRepository>;
 let vacancies: ReturnType<typeof createVacanciesRepository>;
-/** Respuesta de Anthropic de la prueba en curso (frontera externa, D9). */
-let llm: ReturnType<typeof fixtureAnthropic>;
+/** Binario `claude` falso de la prueba en curso (frontera externa, D9). */
+let llm!: ReturnType<typeof useFakeClaude>;
+function useLlm(email: unknown) {
+  if (llm) llm.restore();
+  llm = useFakeClaude({ subject: email });
+}
 
 beforeAll(async () => {
   iso = await createIsolatedDb();
@@ -51,7 +55,7 @@ beforeAll(async () => {
       repo: createEmailDraftsRepository(iso.db),
       getCv: (id) => cvs.get(id),
       getVacancy: (id) => vacancies.get(id),
-      draft: (input) => draftApplicationEmail(input, llm.api),
+      draft: (input) => draftApplicationEmail(input),
     }),
   );
 });
@@ -60,8 +64,10 @@ afterAll(async () => {
   await iso.drop();
 });
 
+afterEach(() => llm.restore());
+
 beforeEach(async () => {
-  llm = fixtureAnthropic(EN_EMAIL);
+  useLlm(EN_EMAIL);
   await iso.db.execute(
     sql`TRUNCATE outbound_emails, match_reports, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
   );
@@ -106,7 +112,7 @@ describe("generar el borrador del correo", () => {
       status: "draft",
       to: "jobs@acme.com",
     });
-    expect(JSON.stringify(llm.requests[0])).toContain("TypeScript engineer.");
+    expect(llm.capture().stdin).toContain("TypeScript engineer.");
   });
 
   it("sin email en la vacante el destinatario queda vacío (C7)", async () => {
@@ -118,7 +124,7 @@ describe("generar el borrador del correo", () => {
     const cv = await englishCv();
     const res = await call("POST", `/cvs/${cv.id}/email-draft`, { to: "no-es-email" });
     expect(res.status).toBe(400);
-    expect(llm.requests).toHaveLength(0);
+    expect(llm.invoked()).toBe(false);
     expect(await rows()).toHaveLength(0);
   });
 
@@ -131,7 +137,7 @@ describe("generar el borrador del correo", () => {
   });
 
   it("AC-005: un error del LLM no crea filas en outbound_emails", async () => {
-    llm = fixtureAnthropic({ ...EN_EMAIL, language: "es" });
+    useLlm({ ...EN_EMAIL, language: "es" });
     const cv = await englishCv();
     const res = await call("POST", `/cvs/${cv.id}/email-draft`, {});
     expect(res.status).toBe(500);
@@ -141,7 +147,7 @@ describe("generar el borrador del correo", () => {
   it("regenerar reemplaza el borrador anterior del CV", async () => {
     const cv = await englishCv();
     await generate(cv.id);
-    llm = fixtureAnthropic({ ...EN_EMAIL, subject: "Second try" });
+    useLlm({ ...EN_EMAIL, subject: "Second try" });
     const second = await generate(cv.id);
     expect((await rows()).map((r) => r.subject)).toEqual(["Second try"]);
     const res = await call("GET", `/cvs/${cv.id}/email-draft`);
@@ -159,7 +165,7 @@ describe("generar el borrador del correo", () => {
     expect((await call("POST", `/cvs/${orphan.id}/email-draft`, {})).status).toBe(404);
     const cv = await englishCv();
     expect((await call("POST", `/cvs/${cv.id}/email-draft`, { to: 42 })).status).toBe(400);
-    expect(llm.requests).toHaveLength(0);
+    expect(llm.invoked()).toBe(false);
   });
 
   it("sin cuerpo en la petición usa el destinatario de la vacante", async () => {
