@@ -1,4 +1,11 @@
-import type { GenerateCvRequest, MatchReport, RetrievedChunk, Vacancy } from "@apply/shared";
+import type {
+  CvDoc,
+  CvMatchReport,
+  GenerateCvRequest,
+  MatchReport,
+  RetrievedChunk,
+  Vacancy,
+} from "@apply/shared";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { slugify } from "../storage.ts";
@@ -17,6 +24,8 @@ export interface CvRoutesDeps {
   cleanMarkdown: (markdown: string) => string;
   /** Genera el PDF en memoria; la API no lo guarda (C1). */
   renderPdf: (markdown: string, title: string) => Promise<Uint8Array>;
+  /** Informe de match del CV generado frente a su vacante (D6). */
+  matchReport: (cv: CvDoc, vacancy: Vacancy) => Promise<CvMatchReport>;
 }
 
 const NOT_FOUND = { error: "CV no encontrado" };
@@ -28,6 +37,7 @@ export function cvRoutes({
   streamCv,
   cleanMarkdown,
   renderPdf,
+  matchReport,
 }: CvRoutesDeps) {
   return new Hono()
     .get("/cvs", async (c) => c.json(await repo.list()))
@@ -35,6 +45,14 @@ export function cvRoutes({
     .get("/cvs/:id", async (c) => {
       const cv = await repo.get(c.req.param("id"));
       return cv ? c.json(cv) : c.json(NOT_FOUND, 404);
+    })
+
+    .get("/cvs/:id/match", async (c) => {
+      const cv = await repo.get(c.req.param("id"));
+      if (!cv) return c.json(NOT_FOUND, 404);
+      const vacancy = cv.vacancyId === null ? null : await getVacancy(cv.vacancyId);
+      if (!vacancy) return c.json({ error: "El CV no tiene vacante con la cual medirlo" }, 404);
+      return c.json(await matchReport(cv, vacancy));
     })
 
     .put("/cvs/:id", async (c) => {

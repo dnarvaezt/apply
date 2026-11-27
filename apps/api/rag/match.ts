@@ -1,6 +1,7 @@
 import type {
   MatchLevel,
   MatchReport,
+  MatchWeights,
   RequirementMatch,
   RetrievedChunk,
   Vacancy,
@@ -25,6 +26,22 @@ export interface Query {
 export interface Scored {
   c: Chunk;
   score: number;
+}
+
+/** Peso de cada nivel en la cobertura ponderada de `mustHave` (D6). */
+export const MATCH_WEIGHTS: MatchWeights = { fuerte: 1, parcial: 0.5, débil: 0 };
+
+/** Promedio de los pesos de los niveles de `mustHave`; 1 si la vacante no tiene ninguno. */
+export function weightedCoverage(mustLevels: MatchLevel[]): number {
+  if (mustLevels.length === 0) return 1;
+  return round(mustLevels.reduce((acc, l) => acc + MATCH_WEIGHTS[l], 0) / mustLevels.length);
+}
+
+/** Similitud coseno de dos vectores ya normalizados (los de `embed`). */
+export function cosine(a: number[], b: number[]): number {
+  let dot = 0;
+  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  return dot;
 }
 
 export function level(score: number): MatchLevel {
@@ -136,19 +153,17 @@ export function buildMatchReport(
     if (!selected.some((s) => s.id === c.id)) selected.unshift(toRetrieved(c, 1));
   }
 
-  const must = requirements.filter((r) => r.kind === "must");
-  const weight = { fuerte: 1, parcial: 0.5, débil: 0 } as const;
-  const coverage = must.length
-    ? must.reduce((acc, r) => acc + weight[r.level], 0) / must.length
-    : 1;
+  const coverage = weightedCoverage(
+    requirements.filter((r) => r.kind === "must").map((r) => r.level),
+  );
 
-  return { vacancyId, coverage: round(coverage), requirements, chunks: selected };
+  return { vacancyId, coverage, requirements, chunks: selected };
 }
 
 function toRetrieved(c: Chunk, score: number): RetrievedChunk {
   return { id: c.id, file: c.file, heading: c.heading, text: c.text, score: round(score) };
 }
 
-function round(n: number): number {
+export function round(n: number): number {
   return Math.round(n * 1000) / 1000;
 }

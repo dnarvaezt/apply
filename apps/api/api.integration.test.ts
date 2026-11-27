@@ -1,12 +1,14 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
-import type { CvDoc, CvMeta, MatchReport, Vacancy } from "@apply/shared";
+import type { CvDoc, CvMatchReport, CvMeta, MatchReport, Vacancy } from "@apply/shared";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createCvsRepository } from "./cvs/repository.ts";
 import { cvRoutes } from "./cvs/routes.ts";
+import { createMatchReportsRepository } from "./match-reports/repository.ts";
+import { createCvMatcher } from "./match-reports/service.ts";
 import { DATA_DIR } from "./storage.ts";
 import { extracted } from "./test/fixtures.ts";
 import { createIsolatedDb, type IsolatedDb } from "./test/test-db.ts";
@@ -46,6 +48,31 @@ const cvMetaShape = {
 const cvMetaSchema: z.ZodType<CvMeta> = z.strictObject(cvMetaShape);
 const cvDocSchema: z.ZodType<CvDoc> = z.strictObject({ ...cvMetaShape, markdown: z.string() });
 
+const levelSchema = z.enum(["fuerte", "parcial", "débil"]);
+const cvMatchSchema: z.ZodType<CvMatchReport> = z.strictObject({
+  cvId: z.string(),
+  vacancyId: z.string(),
+  coverage: z.number(),
+  requirements: z.array(
+    z.strictObject({
+      requirement: z.string(),
+      kind: z.enum(["must", "nice"]),
+      score: z.number(),
+      level: levelSchema,
+      evidence: z.strictObject({ heading: z.string(), text: z.string() }).nullable(),
+    }),
+  ),
+  keywords: z.strictObject({
+    found: z.array(z.string()),
+    missing: z.array(z.string()),
+    coverage: z.number(),
+  }),
+  model: z.string(),
+  embedModel: z.string(),
+  weights: z.strictObject({ fuerte: z.number(), parcial: z.number(), débil: z.number() }),
+  createdAt: z.iso.datetime(),
+});
+
 const REPORT: MatchReport = { vacancyId: "x", coverage: 1, requirements: [], chunks: [] };
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 const LONG_TEXT = "Buscamos un ingeniero backend con experiencia en TypeScript y Postgres. ".repeat(
@@ -82,6 +109,13 @@ beforeAll(async () => {
         },
         cleanMarkdown: (md) => md.replace(/```(markdown)?/g, "").trim(),
         renderPdf,
+        // Vectores fijos: el contrato de la ruta no depende del modelo de embeddings real
+        // (el cálculo con el modelo real lo cubre match-reports/service.integration.test.ts).
+        matchReport: createCvMatcher({
+          repo: createMatchReportsRepository(iso.db),
+          embedModel: "fijo",
+          embed: async (texts) => texts.map(() => [1, 0]),
+        }),
       }),
     );
 });
@@ -315,6 +349,33 @@ describe("API de CVs (AC-003)", () => {
     expect(list).toHaveLength(2);
     const got = cvDocSchema.parse(await (await call("GET", `/cvs/${doc.id}`)).json());
     expect(got).toEqual(doc);
+  });
+
+  it("GET /cvs/:id/match mide el CV contra su vacante con el contrato de @apply/shared (#16)", async () => {
+    const { body: vacancy } = await createVacancy();
+    const cv = await generateCv(vacancy.id);
+
+    const res = await call("GET", `/cvs/${cv.id}/match`);
+    expect(res.status).toBe(200);
+    const report = cvMatchSchema.parse(await res.json());
+    expect(report).toMatchObject({ cvId: cv.id, vacancyId: vacancy.id, embedModel: "fijo" });
+    // Requisitos de `extracted()`: mustHave TypeScript, PostgreSQL; niceToHave Docker.
+    expect(report.requirements.map((r) => [r.requirement, r.kind, r.level])).toEqual([
+      ["TypeScript", "must", "fuerte"],
+      ["PostgreSQL", "must", "fuerte"],
+      ["Docker", "nice", "fuerte"],
+    ]);
+    expect(report.keywords).toEqual({ found: [], missing: ["node", "sql"], coverage: 0 });
+  });
+
+  it("GET /cvs/:id/match responde 404 sin CV o con un CV sin vacante", async () => {
+    expect((await call("GET", "/cvs/999/match")).status).toBe(404);
+    const { body: vacancy } = await createVacancy();
+    const cv = await generateCv(vacancy.id);
+    await call("DELETE", `/vacancies/${vacancy.id}`);
+    const res = await call("GET", `/cvs/${cv.id}/match`);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "El CV no tiene vacante con la cual medirlo" });
   });
 
   it("generate responde 404 si la vacante no existe", async () => {

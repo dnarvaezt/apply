@@ -75,6 +75,7 @@ describe("api", () => {
     await api.vacancies.match("v1");
     await api.cvs.list();
     await api.cvs.get("c1");
+    await api.cvs.match("c1");
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
     expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
       "DELETE /api/profile/mi%20cv.md",
@@ -83,6 +84,7 @@ describe("api", () => {
       "GET /api/vacancies/v1/match",
       "GET /api/cvs",
       "GET /api/cvs/c1",
+      "GET /api/cvs/c1/match",
     ]);
   });
 });

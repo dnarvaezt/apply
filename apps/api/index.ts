@@ -11,8 +11,11 @@ import { cvRoutes } from "./cvs/routes.ts";
 import { closeDb, getDb } from "./db.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
 import { cleanMarkdown, extractVacancy, MODEL, streamCv } from "./llm.ts";
+import { createMatchReportsRepository } from "./match-reports/repository.ts";
+import { createCvMatcher } from "./match-reports/service.ts";
 import { ENV_FILE } from "./paths.ts";
 import { closeBrowser, markdownToPdf } from "./pdf.ts";
+import { EMBED_MODEL, embed } from "./rag/embed.ts";
 import { buildIndex, getIndexStatus, retrieveForVacancy } from "./rag/index.ts";
 import { ensureDataDirs, listFiles, mtime, PROFILE_DIR, removeFile, safeName } from "./storage.ts";
 import { createVacanciesRepository } from "./vacancies/repository.ts";
@@ -97,6 +100,11 @@ app.route(
     streamCv,
     cleanMarkdown,
     renderPdf: markdownToPdf,
+    matchReport: createCvMatcher({
+      repo: createMatchReportsRepository(getDb()),
+      embedModel: EMBED_MODEL,
+      embed,
+    }),
   }),
 );
 app.route("/", applicationRoutes({ repo: createApplicationsRepository(getDb()) }));
