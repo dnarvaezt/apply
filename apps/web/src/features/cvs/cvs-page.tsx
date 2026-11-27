@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, download } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -187,17 +188,26 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
             </div>
           </div>
 
-          <div className="grid min-h-[75vh] gap-3 xl:grid-cols-2">
-            <Textarea
-              className="min-h-[75vh] resize-none font-mono text-[13px] leading-relaxed"
-              value={markdown}
-              onChange={(e) => setMarkdown(e.target.value)}
-              spellCheck
-            />
-            <div className="overflow-auto rounded-xl bg-muted/50 p-4">
-              <CvPreview markdown={markdown} />
-            </div>
-          </div>
+          <Tabs defaultValue="preview">
+            <TabsList>
+              <TabsTrigger value="edit">Editar</TabsTrigger>
+              <TabsTrigger value="preview">Vista previa</TabsTrigger>
+            </TabsList>
+            <TabsContent value="edit">
+              <Textarea
+                className="min-h-[75vh] resize-none font-mono text-[13px] leading-relaxed"
+                aria-label="Markdown del CV"
+                value={markdown}
+                onChange={(e) => setMarkdown(e.target.value)}
+                spellCheck
+              />
+            </TabsContent>
+            <TabsContent value="preview">
+              <div className="min-h-[75vh] overflow-auto rounded-xl bg-muted/50 p-4">
+                <CvPreview markdown={markdown} />
+              </div>
+            </TabsContent>
+          </Tabs>
           {match?.cvId === cv.id && <CvMatchPanel report={match} />}
           <CvEmailDraft key={cv.id} cvId={cv.id} />
         </div>

@@ -39,6 +39,16 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   // Editarlo: título y markdown, y comprobar que persiste tras recargar
   const title = page.getByLabel("Título del CV");
   await expect(title).toHaveValue("Ingeniera Backend E2E — ACME S.A.");
+  // Abre en "Vista previa" (render) y se alterna a "Editar" solo con el teclado.
+  await expect(page.getByRole("tab", { name: "Vista previa" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator("textarea.font-mono")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Vista previa" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("tab", { name: "Editar" })).toHaveAttribute("aria-selected", "true");
   const editor = page.locator("textarea.font-mono");
   await expect(editor).toHaveValue(/# Ana Pérez/);
   const marker = `Editado e2e ${Date.now()}`;
@@ -51,7 +61,10 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   await page.getByRole("tab", { name: /CVs/ }).click();
   await expect(page.getByText("CVs generados (1)")).toBeVisible();
   await page.getByRole("button", { name: /CV editado e2e/ }).click();
+  await page.getByRole("tab", { name: "Editar" }).click();
   await expect(page.locator("textarea.font-mono")).toHaveValue(new RegExp(marker));
+  await page.getByRole("tab", { name: "Vista previa" }).click();
+  await expect(page.getByText(marker)).toBeVisible();
 
   // Descargar el PDF (se regenera en la descarga) y comprobar que no queda en disco
   const downloadPromise = page.waitForEvent("download");
