@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false index.ts",
     "start": "tsx index.ts",
-    "import": "tsx import/cli.ts"
+    "import": "tsx import/cli.ts",
+    "match:calibrate": "tsx match-reports/calibrate-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.14.0",
