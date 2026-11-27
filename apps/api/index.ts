@@ -14,6 +14,10 @@ import { closeDb, getDb } from "./db.ts";
 import { createEmailDraftsRepository } from "./emails/repository.ts";
 import { emailDraftRoutes } from "./emails/routes.ts";
 import { fetchVacancyText } from "./fetch-url.ts";
+import { readGmailConfig } from "./gmail/config.ts";
+import { createGmailConnection } from "./gmail/connection.ts";
+import { gmailRoutes } from "./gmail/routes.ts";
+import { createTokenStore } from "./gmail/token-store.ts";
 import { cleanMarkdown, draftApplicationEmail, extractVacancy, MODEL, streamCv } from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
 import { createCvMatcher } from "./match-reports/service.ts";
@@ -126,6 +130,14 @@ app.route(
   }),
 );
 
+// ───────────── Gmail (opcional: sin credenciales la app sigue funcionando) ─────────────
+
+const gmailConfig = readGmailConfig();
+const gmail =
+  gmailConfig &&
+  createGmailConnection({ config: gmailConfig, store: createTokenStore(gmailConfig.tokenDir) });
+app.route("/", gmailRoutes({ gmail }));
+
 const port = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port }, () => {
   console.log(`API local en http://localhost:${port}/api  ·  modelo: ${MODEL}`);
@@ -133,6 +145,7 @@ serve({ fetch: app.fetch, port }, () => {
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {
+    gmail?.close();
     await closeBrowser();
     await closeDb();
     process.exit(0);

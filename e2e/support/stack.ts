@@ -1,6 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { startFakeGoogle } from "../../apps/api/test/fake-google.ts";
 import { startEphemeralPostgres } from "../../packages/db/test/ephemeral-postgres.ts";
 import { E2E_DB_URL_FILE } from "./db-url.ts";
 import { startFakeAnthropic } from "./fake-anthropic.ts";
@@ -9,6 +11,8 @@ import { startFakeAnthropic } from "./fake-anthropic.ts";
  * Backend del E2E, un solo proceso para que Playwright lo arranque y lo apague:
  *  - Postgres efímero (Testcontainers) con migraciones; nunca la base `apply` de desarrollo.
  *  - Anthropic falso en la frontera HTTP (`ANTHROPIC_BASE_URL`).
+ *  - Google falso (OAuth + Gmail) y un `APPLY_CONFIG_DIR` temporal fuera del repo: nunca toca
+ *    la cuenta ni los tokens reales del usuario.
  *  - La API real apuntando a ambos.
  * Variables: PORT (API), E2E_LLM_PORT (Anthropic falso), CV_DATA_DIR (perfil temporal).
  * La URL de la base queda en `E2E_DB_URL_FILE` para los specs que corren comandos contra ella.
@@ -21,6 +25,9 @@ const postgres = await startEphemeralPostgres();
 mkdirSync(path.dirname(E2E_DB_URL_FILE), { recursive: true });
 writeFileSync(E2E_DB_URL_FILE, postgres.url, "utf8");
 const llm = await startFakeAnthropic(llmPort);
+const google = await startFakeGoogle();
+const gmailConfigDir = path.join(tmpdir(), `apply-e2e-gmail-${apiPort}`);
+rmSync(gmailConfigDir, { recursive: true, force: true });
 
 const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/api"], {
   stdio: "inherit",
@@ -30,6 +37,12 @@ const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/api"], {
     DATABASE_URL: postgres.url,
     ANTHROPIC_BASE_URL: `http://127.0.0.1:${llmPort}`,
     ANTHROPIC_API_KEY: "e2e-clave-falsa",
+    GOOGLE_CLIENT_ID: "e2e-cliente.apps.googleusercontent.com",
+    GOOGLE_CLIENT_SECRET: "e2e-secreto-falso",
+    GOOGLE_OAUTH_AUTH_URL: google.authUrl,
+    GOOGLE_OAUTH_TOKEN_URL: google.tokenUrl,
+    GMAIL_API_ROOT_URL: google.url,
+    APPLY_CONFIG_DIR: gmailConfigDir,
   },
 });
 
@@ -39,6 +52,7 @@ async function shutdown(code: number): Promise<never> {
     closing = true;
     api.kill("SIGTERM");
     llm.close();
+    await google.close().catch(() => undefined);
     await postgres.stop().catch(() => undefined);
   }
   process.exit(code);

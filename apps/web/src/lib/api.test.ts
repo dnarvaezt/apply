@@ -135,6 +135,18 @@ describe("api.applications", () => {
     expect(await api.metrics.tracking()).toEqual({ applications: 3 });
     expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe("/api/metrics");
   });
+
+  it("consulta el estado de Gmail e inicia la conexión con POST", async () => {
+    const fetchMock = stubFetch(jsonResponse({ state: "disconnected", email: null }));
+    expect(await api.gmail.status()).toEqual({ state: "disconnected", email: null });
+    expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe("/api/gmail/status");
+
+    const connectMock = stubFetch(jsonResponse({ authUrl: "https://accounts.example/auth" }));
+    expect(await api.gmail.connect()).toEqual({ authUrl: "https://accounts.example/auth" });
+    const [url, init] = connectMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/gmail/connect");
+    expect(init.method).toBe("POST");
+  });
 });
 
 function sse(...events: string[]): Response {

@@ -3,6 +3,7 @@ import { applicationsApi } from "./api/applications.ts";
 import { contactsApi } from "./api/contacts.ts";
 import { cvsApi } from "./api/cvs.ts";
 import { emailDraftsApi } from "./api/email-drafts.ts";
+import { gmailApi } from "./api/gmail.ts";
 import { json, request } from "./api/http.ts";
 import { metricsApi } from "./api/metrics.ts";
 import { vacanciesApi } from "./api/vacancies.ts";
@@ -31,6 +32,7 @@ export const api = {
   contacts: contactsApi,
   emailDrafts: emailDraftsApi,
   metrics: metricsApi,
+  gmail: gmailApi,
 };
 
 /** Descarga un archivo desde una URL o un Blob. */

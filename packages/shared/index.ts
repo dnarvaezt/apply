@@ -2,6 +2,7 @@ export * from "./application.ts";
 export * from "./contact.ts";
 export * from "./cv.ts";
 export * from "./email.ts";
+export * from "./gmail.ts";
 export * from "./metrics.ts";
 export * from "./types.ts";
 export * from "./vacancy.ts";
