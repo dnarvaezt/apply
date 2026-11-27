@@ -1,16 +1,17 @@
-import type { ApplicationEvent } from "@apply/shared";
+import type { ApplicationTimeline } from "@apply/shared";
 import { RotateCw } from "lucide-react";
+import type { ReactNode } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApplicationTimeline } from "./application-timeline";
+import { ApplicationDetail } from "./application-detail";
 import { ApplicationsList } from "./applications-list";
 import { NewApplicationForm } from "./new-application-form";
 import { usePipeline } from "./use-pipeline";
 
-/** Pipeline de postulaciones: alta, lista filtrable y línea de tiempo (REQ-001..REQ-005). */
+/** Pipeline de postulaciones: alta, lista filtrable, línea de tiempo y registro manual. */
 export function ApplicationsPage() {
-  const { load, selectedId, events, reload, select, create } = usePipeline();
+  const { load, selectedId, timeline, reload, select, create, ...actions } = usePipeline();
 
   if (load.state === "loading") {
     return (
@@ -50,7 +51,12 @@ export function ApplicationsPage() {
             <CardTitle>Nueva postulación</CardTitle>
           </CardHeader>
           <CardContent>
-            <NewApplicationForm vacancies={load.vacancies} cvs={load.cvs} onCreate={create} />
+            <NewApplicationForm
+              vacancies={load.vacancies}
+              cvs={load.cvs}
+              channels={load.channels}
+              onCreate={create}
+            />
           </CardContent>
         </Card>
         <Card>
@@ -73,25 +79,41 @@ export function ApplicationsPage() {
           <CardTitle>Línea de tiempo</CardTitle>
         </CardHeader>
         <CardContent>
-          <TimelineBody selectedId={selectedId} events={events} />
+          <TimelineBody
+            selectedId={selectedId}
+            timeline={timeline}
+            detail={(view) => (
+              <ApplicationDetail
+                timeline={view}
+                channels={load.channels}
+                onAddEvent={actions.addEvent}
+                onAddContact={actions.addContact}
+                onUpdateContact={actions.updateContact}
+                onMarkProcessStart={actions.markProcessStart}
+              />
+            )}
+          />
         </CardContent>
       </Card>
     </div>
   );
 }
 
+/** Pide elegir una postulación, muestra la carga o el detalle de la elegida. */
 function TimelineBody({
   selectedId,
-  events,
+  timeline,
+  detail,
 }: {
   selectedId: string | null;
-  events: ApplicationEvent[] | null;
+  timeline: ApplicationTimeline | null;
+  detail: (timeline: ApplicationTimeline) => ReactNode;
 }) {
   if (selectedId === null) {
     return (
       <p className="text-sm text-muted-foreground">Elige una postulación para ver sus eventos.</p>
     );
   }
-  if (events === null) return <div className="h-24 animate-pulse rounded-lg bg-muted" />;
-  return <ApplicationTimeline events={events} />;
+  if (timeline === null) return <div className="h-24 animate-pulse rounded-lg bg-muted" />;
+  return detail(timeline);
 }

@@ -1,5 +1,6 @@
 import type { IndexStatus, ProfileFile } from "@apply/shared";
 import { applicationsApi } from "./api/applications.ts";
+import { contactsApi } from "./api/contacts.ts";
 import { cvsApi } from "./api/cvs.ts";
 import { emailDraftsApi } from "./api/email-drafts.ts";
 import { json, request } from "./api/http.ts";
@@ -26,6 +27,7 @@ export const api = {
   vacancies: vacanciesApi,
   cvs: cvsApi,
   applications: applicationsApi,
+  contacts: contactsApi,
   emailDrafts: emailDraftsApi,
 };
 

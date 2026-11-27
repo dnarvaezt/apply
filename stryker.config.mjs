@@ -39,6 +39,7 @@ export default {
         "apps/web/src/lib/api/cvs.ts",
         "apps/web/src/lib/api/vacancies.ts",
         "apps/web/src/lib/api/applications.ts",
+        "apps/web/src/lib/api/contacts.ts",
         "apps/web/src/lib/api/email-drafts.ts",
         "apps/api/emails/draft.ts",
       ],

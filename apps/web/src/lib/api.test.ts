@@ -105,6 +105,30 @@ describe("api.applications", () => {
     ]);
     expect(calls[3][1]?.body).toBe(JSON.stringify({ vacancyId: "v1", cvId: "c1" }));
   });
+
+  it("registra eventos, lista canales y gestiona contactos de la postulación", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    await api.applications.addEvent("a1", { type: "interview", source: "manual" });
+    await api.applications.channels();
+    await api.contacts.add("a1", { name: "Ana", isProcessStart: true });
+    await api.contacts.update("c 1", { name: "Ana P." });
+    await api.contacts.markProcessStart("a1", "c1", false);
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
+      "POST /api/applications/a1/events",
+      "GET /api/channels",
+      "POST /api/applications/a1/contacts",
+      "PUT /api/contacts/c%201",
+      "PATCH /api/applications/a1/contacts/c1",
+    ]);
+    expect(calls.map(([, i]) => i?.body)).toEqual([
+      JSON.stringify({ type: "interview", source: "manual" }),
+      undefined,
+      JSON.stringify({ name: "Ana", isProcessStart: true }),
+      JSON.stringify({ name: "Ana P." }),
+      JSON.stringify({ isProcessStart: false }),
+    ]);
+  });
 });
 
 function sse(...events: string[]): Response {
