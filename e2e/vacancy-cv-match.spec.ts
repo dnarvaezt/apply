@@ -42,6 +42,7 @@ test("AC-006 (#16): el CV abierto muestra su cobertura frente a la vacante y se 
   await expect(panel.getByText("postgres", { exact: true })).toBeVisible();
 
   // Editar el CV y guardar recalcula el informe con el contenido nuevo.
+  await page.getByRole("tab", { name: "Editar" }).click();
   await page
     .locator("textarea.font-mono")
     .fill("# Ana Pérez\n\n## Resumen\n\nIngeniera con TypeScript, PostgreSQL y postgres.\n");
