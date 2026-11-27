@@ -172,3 +172,56 @@ export function cleanMarkdown(md: string): string {
     .replace(/\n```\s*$/, "")
     .trim();
 }
+
+const EmailSchema = z.object({
+  subject: z.string().min(1).describe("Asunto del correo: el puesto y el nombre del candidato"),
+  body: z
+    .string()
+    .min(1)
+    .describe(
+      "Cuerpo del correo SIN saludo inicial: empieza en el primer párrafo y cierra con la firma",
+    ),
+  language: z.enum(["es", "en"]).describe("Idioma en que está escrito el correo"),
+});
+
+export type DraftedEmail = z.infer<typeof EmailSchema>;
+
+const EMAIL_SYSTEM = `Redactas el correo con el que un candidato envía su CV a una vacante.
+- Usa solo hechos del CV entregado: no inventes experiencia, cifras ni datos de contacto.
+- 2-3 párrafos breves: por qué el rol, qué del CV encaja con los requisitos obligatorios, cierre con disponibilidad para conversar y mención del CV adjunto.
+- No escribas el saludo inicial (se agrega aparte con el nombre de quien publicó la vacante). Cierra con la firma usando el nombre del CV.
+- Escribe en el idioma indicado; el campo language debe ser ese idioma.`;
+
+/** Borrador del correo de postulación (D7): `messages.parse` + zod, sin streaming. */
+export async function draftApplicationEmail(
+  input: { vacancy: Vacancy; cvMarkdown: string },
+  api: Pick<Anthropic, "beta"> = client,
+): Promise<DraftedEmail> {
+  const { vacancy } = input;
+  const response = await api.beta.messages.parse({
+    model: MODEL,
+    max_tokens: 16000,
+    betas: BETAS,
+    fallbacks: "default",
+    output_config: { effort: "low", format: betaZodOutputFormat(EmailSchema) },
+    system: EMAIL_SYSTEM,
+    messages: [
+      {
+        role: "user",
+        content: [
+          `<vacante>\n${formatVacancy(vacancy)}\n</vacante>`,
+          `Quien publicó la vacante: ${vacancy.posterName ?? "desconocido"}`,
+          `<cv>\n${input.cvMarkdown}\n</cv>`,
+          `Idioma del correo: ${vacancy.language}`,
+        ].join("\n\n"),
+      },
+    ],
+  });
+  if (response.stop_reason === "refusal") throw new Error("El modelo rechazó redactar el correo.");
+  const email = response.parsed_output;
+  if (!email) throw new Error("No se pudo interpretar el correo redactado.");
+  if (email.language !== vacancy.language) {
+    throw new Error(`El correo llegó en otro idioma (${email.language}) que la vacante.`);
+  }
+  return email;
+}

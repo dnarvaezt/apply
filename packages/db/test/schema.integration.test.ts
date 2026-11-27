@@ -10,6 +10,7 @@ import {
   companies,
   contacts,
   createDb,
+  cvs,
   gmailSyncState,
   outboundEmails,
   platforms,
@@ -105,6 +106,18 @@ describe("esquema real contra Postgres + pgvector", () => {
       await db.insert(applications).values({ vacancyId: vacancy.id, status });
     }
     expect(await db.select().from(applications)).toHaveLength(statuses.length);
+  });
+
+  it("#19: un correo es borrador de un CV o pertenece a una postulación, nunca de ninguno", async () => {
+    const [cv] = await db
+      .insert(cvs)
+      .values({ content: "# CV", language: "es" })
+      .returning({ id: cvs.id });
+    if (!cv) throw new Error("cv no creado");
+    const draft = { subject: "Postulación", body: "Hola", language: "es" };
+    await db.insert(outboundEmails).values({ ...draft, cvId: cv.id, toAddress: null });
+    const message = await rejection(db.insert(outboundEmails).values(draft));
+    expect(message).toMatch(/outbound_emails_owner/);
   });
 
   it("AC-004: message_id_header UNIQUE y gmail_message_id admite NULL repetido", async () => {

@@ -1,6 +1,7 @@
 import type { IndexStatus, ProfileFile } from "@apply/shared";
 import { applicationsApi } from "./api/applications.ts";
 import { cvsApi } from "./api/cvs.ts";
+import { emailDraftsApi } from "./api/email-drafts.ts";
 import { json, request } from "./api/http.ts";
 import { vacanciesApi } from "./api/vacancies.ts";
 
@@ -25,6 +26,7 @@ export const api = {
   vacancies: vacanciesApi,
   cvs: cvsApi,
   applications: applicationsApi,
+  emailDrafts: emailDraftsApi,
 };
 
 /** Descarga un archivo desde una URL o un Blob. */

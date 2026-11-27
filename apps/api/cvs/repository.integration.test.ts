@@ -1,4 +1,4 @@
-import { matchReports } from "@apply/db";
+import { matchReports, outboundEmails } from "@apply/db";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { newVacancy } from "../test/fixtures.ts";
@@ -120,5 +120,18 @@ describe("borrar un CV no deja filas huérfanas (REQ-006)", () => {
     await cvs.remove(cv.id);
 
     expect(await iso.db.select().from(matchReports)).toHaveLength(0);
+  });
+
+  it("elimina sus borradores de correo (#19)", async () => {
+    const vacancy = await vacancies.create(newVacancy());
+    const cv = await cvs.create(input(vacancy.id));
+    await iso.db
+      .insert(outboundEmails)
+      .values({ cvId: Number(cv.id), subject: "S", body: "B", language: "es" });
+
+    await cvs.remove(cv.id);
+
+    expect(await iso.db.select().from(outboundEmails)).toHaveLength(0);
+    expect(await cvs.get(cv.id)).toBeNull();
   });
 });

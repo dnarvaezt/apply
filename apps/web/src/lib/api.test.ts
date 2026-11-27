@@ -175,3 +175,22 @@ describe("generateCv", () => {
     await expect(generateCv("v1", "", {})).rejects.toThrow("Error 500");
   });
 });
+
+describe("api.emailDrafts", () => {
+  it("lee el borrador del CV, lo genera con POST y lo guarda con PUT", async () => {
+    const fetchMock = stubFetch(() => jsonResponse(null));
+    expect(await api.emailDrafts.forCv("c 1")).toBeNull();
+    await api.emailDrafts.generate("c1");
+    await api.emailDrafts.save("e1", { to: "ana@example.com", subject: "S", body: "B" });
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
+      "GET /api/cvs/c%201/email-draft",
+      "POST /api/cvs/c1/email-draft",
+      "PUT /api/email-drafts/e1",
+    ]);
+    expect(calls[1][1]?.body).toBe("{}");
+    expect(calls[2][1]?.body).toBe(
+      JSON.stringify({ to: "ana@example.com", subject: "S", body: "B" }),
+    );
+  });
+});
