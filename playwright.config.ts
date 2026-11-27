@@ -33,8 +33,12 @@ export default defineConfig({
   // Las postulaciones no se pueden borrar (eventos append-only) y retienen su vacante, así que sus
   // specs corren después de los que esperan la base vacía (AC-006 de vacancies-cvs).
   projects: [
-    { name: "ui", testIgnore: /(applications(-view)?|import-data)\.spec\.ts/ },
-    { name: "applications", testMatch: /applications(-view)?\.spec\.ts/, dependencies: ["ui"] },
+    { name: "ui", testIgnore: /(applications(-view)?|metrics|import-data)\.spec\.ts/ },
+    {
+      name: "applications",
+      testMatch: /(applications(-view)?|metrics)\.spec\.ts/,
+      dependencies: ["ui"],
+    },
     // La importación reemplaza el índice del perfil por el del fixture: corre al final.
     { name: "import", testMatch: /import-data\.spec\.ts/, dependencies: ["applications"] },
   ],

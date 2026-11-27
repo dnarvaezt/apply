@@ -129,6 +129,12 @@ describe("api.applications", () => {
       JSON.stringify({ isProcessStart: false }),
     ]);
   });
+
+  it("pide las métricas de seguimiento a GET /metrics", async () => {
+    const fetchMock = stubFetch(jsonResponse({ applications: 3 }));
+    expect(await api.metrics.tracking()).toEqual({ applications: 3 });
+    expect((fetchMock.mock.calls[0] as unknown as [string])[0]).toBe("/api/metrics");
+  });
 });
 
 function sse(...events: string[]): Response {

@@ -1,4 +1,10 @@
-import type { ApplicationEventType, ApplicationStatus, EventSource } from "@apply/shared";
+import {
+  APPLICATION_STATUSES,
+  type ApplicationEventType,
+  type ApplicationStatus,
+  type EventSource,
+} from "@apply/shared";
+import { CLASSIFIED } from "./classified.ts";
 
 export interface IncomingEvent {
   type: ApplicationEventType;
@@ -21,14 +27,20 @@ export function isActive(status: ApplicationStatus): boolean {
   return !isTerminal(status);
 }
 
+/** Estados activos de rango igual o mayor que `from`; vacío si `from` es terminal. */
+export function activeStatusesFrom(from: ApplicationStatus): ApplicationStatus[] {
+  const min = ACTIVE_RANK[from] ?? Number.POSITIVE_INFINITY;
+  return APPLICATION_STATUSES.filter((status) => (ACTIVE_RANK[status] ?? -1) >= min);
+}
+
 /** `reopened` solo se acepta con `source = manual` (REQ-005). */
 export function canRecord(event: IncomingEvent): boolean {
   return event.type !== "reopened" || event.source === "manual";
 }
 
-/** El primer evento `interview` u `offer` fija `classified_at` (REQ-006). */
+/** El primer evento que clasifica según `CLASSIFIED` fija `classified_at` (REQ-006). */
 export function isClassifying(type: ApplicationEventType): boolean {
-  return type === "interview" || type === "offer";
+  return CLASSIFIED.eventTypes.includes(type);
 }
 
 /** Estado en el que queda una postulación reabierta. */

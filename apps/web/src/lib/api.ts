@@ -4,6 +4,7 @@ import { contactsApi } from "./api/contacts.ts";
 import { cvsApi } from "./api/cvs.ts";
 import { emailDraftsApi } from "./api/email-drafts.ts";
 import { json, request } from "./api/http.ts";
+import { metricsApi } from "./api/metrics.ts";
 import { vacanciesApi } from "./api/vacancies.ts";
 
 export type { GenerateHandlers } from "./api/cvs.ts";
@@ -29,6 +30,7 @@ export const api = {
   applications: applicationsApi,
   contacts: contactsApi,
   emailDrafts: emailDraftsApi,
+  metrics: metricsApi,
 };
 
 /** Descarga un archivo desde una URL o un Blob. */

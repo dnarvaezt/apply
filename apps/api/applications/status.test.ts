@@ -1,6 +1,13 @@
 import { APPLICATION_STATUSES, type ApplicationStatus } from "@apply/shared";
 import { describe, expect, it } from "vitest";
-import { canRecord, isActive, isClassifying, isTerminal, next } from "./status.ts";
+import {
+  activeStatusesFrom,
+  canRecord,
+  isActive,
+  isClassifying,
+  isTerminal,
+  next,
+} from "./status.ts";
 
 const auto = (type: Parameters<typeof next>[1]["type"]) => ({ type, source: "auto" as const });
 const manual = (type: Parameters<typeof next>[1]["type"]) => ({ type, source: "manual" as const });
@@ -107,5 +114,17 @@ describe("isClassifying (REQ-006)", () => {
   it("solo interview y offer fijan classified_at", () => {
     expect(APPLICATION_STATUSES.filter((t) => isClassifying(t))).toEqual(["interview", "offer"]);
     expect(isClassifying("reopened")).toBe(false);
+  });
+});
+
+describe("activeStatusesFrom", () => {
+  it("devuelve los activos de ese rango en adelante, en orden de avance", () => {
+    expect(activeStatusesFrom("applied")).toEqual(["applied", "contacted", "interview", "offer"]);
+    expect(activeStatusesFrom("contacted")).toEqual(["contacted", "interview", "offer"]);
+    expect(activeStatusesFrom("offer")).toEqual(["offer"]);
+  });
+
+  it("desde un terminal no hay estados activos", () => {
+    expect(activeStatusesFrom("rejected")).toEqual([]);
   });
 });
