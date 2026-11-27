@@ -76,6 +76,7 @@ npm run db:down        # lo detiene; el volumen `pgdata` conserva los datos
 - `npm run db:generate`: `drizzle-kit generate` en `packages/db` (no necesita Postgres)
 - `npm run db:migrate`: aplica las migraciones versionadas de `packages/db/drizzle/` (extensión `vector`, 13 tablas, semilla de `platforms` y `channels`) sobre la base de `DATABASE_URL`; es idempotente
 - `npm run db:import`: importa a Postgres las vacantes y los CVs de `data/` (conserva su id viejo en `legacy_id`, sus fechas y la relación CV → vacante) y reconstruye el índice del perfil. Es idempotente: lo ya importado se cuenta como omitido. No modifica ni borra archivos de `data/`. Imprime los conteos y sale con código 1 si algún archivo no se pudo importar
+- `npm run match:calibrate [carpeta]`: mide los umbrales del match del CV (`fuerte`/`parcial`) contra pares CV-vacante etiquetados a mano y propone los que más aciertan, con la tabla de aciertos antes y después. Lee `data/match-sample/*.json` por defecto (fuera de git: son CVs reales). Cada archivo: `{ "cv": "<Markdown>", "vacancy": { "mustHave": [...], "niceToHave": [...], "keywords": [...] }, "expected": [{ "requirement": "<texto exacto de mustHave o niceToHave>", "level": "fuerte" | "parcial" | "débil" }] }`. No cambia nada: los umbrales se editan en `apps/api/rag/match.ts`
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
 - `npm test`: Vitest (proyectos `api`, `web`, `db` y `db-integration`; los de integración levantan Postgres efímero con Docker)

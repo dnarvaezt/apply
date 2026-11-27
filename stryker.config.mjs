@@ -20,6 +20,7 @@ export default {
         "apps/api/rag/chunk.ts",
         "apps/api/rag/match.ts",
         "apps/api/match-reports/match.ts",
+        "apps/api/match-reports/calibrate.ts",
         "apps/api/storage.ts",
         "apps/api/fetch-url.ts",
         "apps/api/llm.ts:167-174",

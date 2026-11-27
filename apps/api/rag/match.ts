@@ -44,10 +44,20 @@ export function cosine(a: number[], b: number[]): number {
   return dot;
 }
 
-export function level(score: number): MatchLevel {
-  if (score >= STRONG) return "fuerte";
-  if (score >= PARTIAL) return "parcial";
+/** Puntaje mínimo de cada nivel; la calibración (#25) prueba otros sin tocar los vigentes. */
+export interface Thresholds {
+  strong: number;
+  partial: number;
+}
+
+export function levelWith(score: number, { strong, partial }: Thresholds): MatchLevel {
+  if (score >= strong) return "fuerte";
+  if (score >= partial) return "parcial";
   return "débil";
+}
+
+export function level(score: number): MatchLevel {
+  return levelWith(score, { strong: STRONG, partial: PARTIAL });
 }
 
 /** Bonus léxico: fracción de términos de la consulta que aparecen literalmente en el chunk. */

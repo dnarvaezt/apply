@@ -22,7 +22,8 @@
     "db:down": "docker compose down",
     "db:generate": "npm run generate -w @apply/db",
     "db:migrate": "npm run migrate -w @apply/db",
-    "db:import": "npm run import -w @apply/api"
+    "db:import": "npm run import -w @apply/api",
+    "match:calibrate": "npm run match:calibrate -w @apply/api --"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.9",
