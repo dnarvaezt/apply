@@ -27,6 +27,8 @@ import {
   toManualFields,
 } from "./poster-form";
 
+type SourceMode = "text" | "url" | "image" | "browser";
+
 type VacanciesPageProps = {
   /** Vacante de la URL; sin ella se muestra la primera. */
   selectedId: string | null;
@@ -38,7 +40,7 @@ export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: Va
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   // Sin vacante en la URL se muestra la primera, sin navegar.
   const selectedId = routeId ?? vacancies[0]?.id ?? null;
-  const [mode, setMode] = useState<"text" | "url" | "image">("text");
+  const [mode, setMode] = useState<SourceMode>("text");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -88,7 +90,9 @@ export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: Va
           ? { text }
           : mode === "url"
             ? { url }
-            : { image: await readImageFile(imageFile as File) };
+            : mode === "browser"
+              ? { url, browser: true }
+              : { image: await readImageFile(imageFile as File) };
       const v = await api.vacancies.create({ ...source, ...toCreateFields(newPoster) });
       setVacancies((prev) => [v, ...prev]);
       onSelect(v.id);
@@ -162,11 +166,13 @@ export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: Va
             <CardDescription>Claude extrae requisitos y palabras clave.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={mode} onValueChange={(v) => setMode(v as "text" | "url" | "image")}>
-              <TabsList className="w-full">
+            <Tabs value={mode} onValueChange={(v) => setMode(v as SourceMode)}>
+              {/* Cuatro opciones no caben en una fila de la columna: dos por fila. */}
+              <TabsList className="grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto">
                 <TabsTrigger value="text">Pegar texto</TabsTrigger>
                 <TabsTrigger value="url">Desde URL</TabsTrigger>
                 <TabsTrigger value="image">Desde imagen</TabsTrigger>
+                <TabsTrigger value="browser">Con Chrome</TabsTrigger>
               </TabsList>
               <TabsContent value="text" className="pt-2">
                 <Textarea
@@ -186,6 +192,20 @@ export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: Va
                 <p className="text-xs text-muted-foreground">
                   Sitios con login (p. ej. LinkedIn) suelen bloquear la descarga: en ese caso pega
                   el texto.
+                </p>
+              </TabsContent>
+              <TabsContent value="browser" className="flex flex-col gap-1 pt-2">
+                <Label htmlFor="vacancy-browser-url">URL de la vacante</Label>
+                <Input
+                  id="vacancy-browser-url"
+                  type="url"
+                  placeholder="https://www.linkedin.com/jobs/view/…"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Claude abre la página en Chrome (MCP) y la lee como la verías tú. Tarda más que
+                  "Desde URL".
                 </p>
               </TabsContent>
               <TabsContent value="image" className="flex flex-col gap-1 pt-2">
@@ -216,7 +236,7 @@ export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: Va
                 adding ||
                 (mode === "text"
                   ? text.trim().length < 80
-                  : mode === "url"
+                  : mode === "url" || mode === "browser"
                     ? !url.trim()
                     : !imageFile)
               }

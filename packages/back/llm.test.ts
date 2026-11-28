@@ -5,6 +5,7 @@ import {
   draftApplicationEmail,
   extractVacancy,
   extractVacancyFromImage,
+  extractVacancyFromWeb,
   streamCv,
 } from "./llm.ts";
 import { FAKE_TRANSCRIPTION, type FakeClaudeMode, useFakeClaude } from "./test/fake-claude.ts";
@@ -128,6 +129,55 @@ describe("extractVacancyFromImage (AC-002, REQ-002)", () => {
   it("rechaza una respuesta sin transcription", async () => {
     useFake({ title: extracted() }, "no-transcription");
     await expect(extractVacancyFromImage(IMAGE)).rejects.toThrow(/formato inválido/);
+  });
+});
+
+describe("extractVacancyFromWeb (#69)", () => {
+  const URL = "https://jobs.example.com/view/42";
+  const PAGE =
+    "Ingeniero backend con TypeScript y PostgreSQL para operar APIs en producción. ".repeat(2);
+  const saved = process.env.CHROME_MCP_BROWSER_URL;
+  afterEach(() => {
+    if (saved === undefined) delete process.env.CHROME_MCP_BROWSER_URL;
+    else process.env.CHROME_MCP_BROWSER_URL = saved;
+  });
+  const mcpServer = (args: string[]) =>
+    (
+      JSON.parse(args[args.indexOf("--mcp-config") + 1] as string) as {
+        mcpServers: Record<string, { command: string; args: string[] }>;
+      }
+    ).mcpServers["chrome-devtools"];
+
+  it("abre la URL con el MCP de Chrome, solo con herramientas de lectura", async () => {
+    delete process.env.CHROME_MCP_BROWSER_URL;
+    const f = useFake({ pageText: { ...extracted(), pageText: PAGE } });
+    await expect(extractVacancyFromWeb(URL)).resolves.toMatchObject({
+      title: "Ingeniero Backend",
+      pageText: PAGE,
+    });
+    const { args, stdin } = f.capture();
+    expect(stdin).toContain(JSON.stringify(URL));
+    expect(args[args.indexOf("--allowedTools") + 1]).toBe(
+      "mcp__chrome-devtools__navigate_page,mcp__chrome-devtools__wait_for,mcp__chrome-devtools__take_snapshot",
+    );
+    expect(args[args.indexOf("--tools") + 1]).toBe("");
+    expect(args).toContain("--strict-mcp-config");
+    const server = mcpServer(args);
+    expect(server?.command).toBe(process.execPath);
+    expect(server?.args).toEqual(expect.arrayContaining(["--headless", "--isolated"]));
+    const schema = JSON.parse(args[args.indexOf("--json-schema") + 1] as string) as {
+      required: string[];
+    };
+    expect(schema.required).toContain("pageText");
+  });
+
+  it("con CHROME_MCP_BROWSER_URL se conecta al Chrome abierto en vez de lanzar uno", async () => {
+    process.env.CHROME_MCP_BROWSER_URL = "http://127.0.0.1:9222";
+    const f = useFake({ pageText: { ...extracted(), pageText: PAGE } });
+    await extractVacancyFromWeb(URL);
+    const server = mcpServer(f.capture().args);
+    expect(server?.args).toEqual(expect.arrayContaining(["--browserUrl", "http://127.0.0.1:9222"]));
+    expect(server?.args).not.toContain("--headless");
   });
 });
 

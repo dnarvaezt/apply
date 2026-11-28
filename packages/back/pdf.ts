@@ -1,27 +1,13 @@
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { marked } from "marked";
 import puppeteer, { type Browser } from "puppeteer-core";
+import { findChromePath } from "./chrome.ts";
 import { CV_THEME_CSS } from "./paths.ts";
-
-const CHROME_CANDIDATES = [
-  process.env.CHROME_PATH,
-  "/usr/bin/google-chrome-stable",
-  "/usr/bin/google-chrome",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-  "/usr/bin/brave",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-].filter((p): p is string => Boolean(p));
 
 let browser: Promise<Browser> | null = null;
 
 function getBrowser(): Promise<Browser> {
-  const executablePath = CHROME_CANDIDATES.find((p) => existsSync(p));
-  if (!executablePath) {
-    throw new Error("No se encontró Chrome/Chromium. Define CHROME_PATH en .env");
-  }
+  const executablePath = findChromePath();
   browser ??= puppeteer.launch({ executablePath, headless: true, args: ["--no-sandbox"] });
   return browser;
 }

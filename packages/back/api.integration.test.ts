@@ -92,6 +92,7 @@ const extractFromImage = vi.fn(async (_image: unknown) => ({
   ...extracted(),
   transcription: LONG_TEXT,
 }));
+const extractFromWeb = vi.fn(async (_url: string) => ({ ...extracted(), pageText: LONG_TEXT }));
 const renderPdf = vi.fn(async (_md: string, _title: string) => PDF);
 
 beforeAll(async () => {
@@ -109,6 +110,7 @@ beforeAll(async () => {
         fetchText,
         extract,
         extractFromImage,
+        extractFromWeb,
         retrieve,
       }),
     )
@@ -186,6 +188,39 @@ describe("API de vacantes (AC-003)", () => {
     const { body } = await createVacancy({ url: "https://example.com/j" });
     expect(fetchText).toHaveBeenCalledWith("https://example.com/j");
     expect(body.rawText).toBe(LONG_TEXT);
+  });
+
+  it("con browser abre la URL con Chrome y no descarga ni vuelve a extraer (#69)", async () => {
+    const { res, body } = await createVacancy({ url: " https://example.com/j ", browser: true });
+    expect(res.status).toBe(200);
+    expect(extractFromWeb).toHaveBeenCalledWith("https://example.com/j");
+    expect(fetchText).not.toHaveBeenCalled();
+    expect(extract).not.toHaveBeenCalled();
+    expect(body).toMatchObject({
+      sourceUrl: "https://example.com/j",
+      rawText: LONG_TEXT.trim(),
+      title: "Ingeniero Backend",
+    });
+  });
+
+  it.each([{}, { url: "javascript:alert(1)" }, { url: "no es url" }])(
+    "con browser y sin URL http(s) (%o) responde 400 sin abrir Chrome",
+    async (input) => {
+      const res = await call("POST", "/vacancies", { ...input, browser: true });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: "Pega la URL http o https de la vacante" });
+      expect(extractFromWeb).not.toHaveBeenCalled();
+    },
+  );
+
+  it("con browser y una página sin vacante responde 422 y no crea la fila", async () => {
+    extractFromWeb.mockResolvedValueOnce({ ...extracted(), pageText: "Inicia sesión" });
+    const res = await call("POST", "/vacancies", { url: "https://example.com/j", browser: true });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      error: "Chrome no mostró la vacante en esa URL (¿pide iniciar sesión?)",
+    });
+    expect(await (await call("GET", "/vacancies")).json()).toEqual([]);
   });
 
   it("rechaza texto corto con el mismo mensaje y 400", async () => {
