@@ -5,6 +5,7 @@ import {
   draftApplicationEmail,
   extractVacancy,
   extractVacancyFromImage,
+  streamCv,
 } from "./llm.ts";
 import { FAKE_TRANSCRIPTION, type FakeClaudeMode, useFakeClaude } from "./test/fake-claude.ts";
 import { extracted, newVacancy } from "./test/fixtures.ts";
@@ -34,8 +35,8 @@ describe("cleanMarkdown", () => {
 let fake: ReturnType<typeof useFakeClaude> | undefined;
 afterEach(() => fake?.restore());
 
-function useFake(outputs: Record<string, unknown>, mode?: FakeClaudeMode) {
-  fake = useFakeClaude(outputs, mode);
+function useFake(outputs: Record<string, unknown>, mode?: FakeClaudeMode, stream?: string[]) {
+  fake = useFakeClaude(outputs, mode, stream);
   return fake;
 }
 
@@ -235,6 +236,116 @@ describe("frontera con la CLI (AC-003, AC-004, AC-005)", () => {
     const f = useFake(VACANCY, "hang");
     process.env.CLAUDE_TIMEOUT_MS = "800";
     await expect(extractVacancy("texto")).rejects.toThrow(/excedió el tiempo límite de 800 ms/);
+    expect(isAlive(f.pid())).toBe(false);
+  });
+});
+
+describe("streamCv (REQ-001, REQ-002, REQ-004)", () => {
+  const vacancy: Vacancy = {
+    ...newVacancy({ title: "Backend Engineer", rawText: "texto original" }),
+    id: "7",
+    createdAt: "2026-11-01T00:00:00.000Z",
+  };
+  const CHUNKS = ["# Ana\n\n", "**Dev**\n", "fin"];
+
+  async function collect(iterable: AsyncIterable<string>): Promise<string[]> {
+    const out: string[] = [];
+    for await (const chunk of iterable) out.push(chunk);
+    return out;
+  }
+
+  it("reemite cada text_delta en orden (AC-001)", async () => {
+    useFake({}, undefined, CHUNKS);
+    expect(await collect(streamCv(vacancy, [], undefined))).toEqual(CHUNKS);
+  });
+
+  it("envía por stdin el perfil, la vacante y las instrucciones, y pide stream-json con effort high (AC-002)", async () => {
+    const f = useFake({}, undefined, CHUNKS);
+    await collect(
+      streamCv(
+        vacancy,
+        [{ id: "c1", file: "perfil.md", heading: "Exp", text: "TypeScript", score: 1 }],
+        "  sé breve  ",
+      ),
+    );
+    const { args, stdin } = f.capture();
+    expect(args).toContain("--include-partial-messages");
+    expect(args[args.indexOf("--effort") + 1]).toBe("high");
+    expect(stdin).toContain('<fragmento archivo="perfil.md" seccion="Exp">');
+    expect(stdin).toContain("<vacante>");
+    expect(stdin).toContain("Backend Engineer");
+    expect(stdin).toContain("<instrucciones_adicionales>\nsé breve\n</instrucciones_adicionales>");
+    expect(stdin).toContain("Escribe el CV adaptado a esta vacante.");
+    expect(args[args.indexOf("--system-prompt") + 1]).toContain("CV");
+  });
+
+  it("termina al hijo con SIGTERM cuando se aborta el stream (AC-003)", async () => {
+    const f = useFake({}, "hang", CHUNKS);
+    const controller = new AbortController();
+    const received: string[] = [];
+    for await (const chunk of streamCv(vacancy, [], undefined, controller.signal)) {
+      received.push(chunk);
+      controller.abort();
+    }
+    expect(received).toEqual([CHUNKS[0]]);
+    expect(isAlive(f.pid())).toBe(false);
+  });
+
+  it("termina al hijo si el consumidor deja de iterar", async () => {
+    const f = useFake({}, "hang", CHUNKS);
+    for await (const _ of streamCv(vacancy, [], undefined)) break;
+    expect(isAlive(f.pid())).toBe(false);
+  });
+
+  it("falla con mensaje claro si el binario no existe (AC-005)", async () => {
+    useFake({}, undefined, CHUNKS);
+    process.env.CLAUDE_BIN = "/no/existe/claude";
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(
+      "No se encontró el binario de Claude (/no/existe/claude). Instala la CLI o define CLAUDE_BIN.",
+    );
+  });
+
+  it("falla con el detalle cuando el result trae is_error (AC-005)", async () => {
+    useFake({}, "error", CHUNKS);
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(
+      "Claude falló: fallo simulado",
+    );
+  });
+
+  it("falla por autenticación y mata al hijo sin esperar el timeout (AC-005)", async () => {
+    const f = useFake({}, "auth", CHUNKS);
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(/\/login/);
+    expect(isAlive(f.pid())).toBe(false);
+  });
+
+  it("falla por límite de la suscripción y mata al hijo (AC-005)", async () => {
+    const f = useFake({}, "rate-limit", CHUNKS);
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(
+      /límite de uso de la suscripción/,
+    );
+    expect(isAlive(f.pid())).toBe(false);
+  });
+
+  it("falla con exit distinto de 0 sin result", async () => {
+    useFake({}, "exit1", CHUNKS);
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(
+      /Claude terminó con código 1.*fallo simulado/,
+    );
+  });
+
+  it("falla si termina bien pero sin ningún texto", async () => {
+    useFake({}, "no-delta", CHUNKS);
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(
+      "Claude no devolvió texto para el CV.",
+    );
+  });
+
+  it("termina al hijo cuando vence CLAUDE_TIMEOUT_MS", async () => {
+    const f = useFake({}, "hang", CHUNKS);
+    process.env.CLAUDE_TIMEOUT_MS = "800";
+    await expect(collect(streamCv(vacancy, [], undefined))).rejects.toThrow(
+      /excedió el tiempo límite de 800 ms/,
+    );
     expect(isAlive(f.pid())).toBe(false);
   });
 });

@@ -3,8 +3,12 @@ import { z } from "zod";
 import {
   buildClaudeArgs,
   buildClaudeEnv,
+  buildClaudeStreamArgs,
   buildImageInput,
+  ClaudeCliError,
+  notFoundError,
   parseClaudeResult,
+  parseStreamLine,
   readClaudeConfig,
   smokeVerdict,
   toClaudeJsonSchema,
@@ -229,5 +233,122 @@ describe("smokeVerdict (AC-008)", () => {
     const v = smokeVerdict("basura");
     expect(v.ok).toBe(false);
     expect(v.reasons.join()).toContain("no es JSON");
+  });
+});
+
+describe("buildClaudeStreamArgs (AC-002)", () => {
+  const args = buildClaudeStreamArgs({ model: "modelo-x", system: "SISTEMA" });
+  const after = (flag: string) => args[args.indexOf(flag) + 1];
+
+  it("pide stream-json con mensajes parciales y effort high", () => {
+    expect(args).toContain("-p");
+    expect(after("--output-format")).toBe("stream-json");
+    expect(args).toContain("--verbose");
+    expect(args).toContain("--include-partial-messages");
+    expect(after("--effort")).toBe("high");
+    expect(after("--model")).toBe("modelo-x");
+    expect(after("--system-prompt")).toBe("SISTEMA");
+  });
+
+  it("aísla la CLI: sin settings, sin herramientas, sin MCP ni sesión", () => {
+    expect(after("--setting-sources")).toBe("");
+    expect(after("--tools")).toBe("");
+    expect(args).toContain("--strict-mcp-config");
+    expect(args).toContain("--no-session-persistence");
+  });
+
+  it("no pide salida estructurada", () => {
+    expect(args).not.toContain("--json-schema");
+  });
+});
+
+describe("parseStreamLine (REQ-001, REQ-004)", () => {
+  const delta = (text: string) =>
+    JSON.stringify({
+      type: "stream_event",
+      event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
+    });
+
+  it("extrae el texto de un text_delta", () => {
+    expect(parseStreamLine(delta("Hola"))).toEqual({ kind: "delta", text: "Hola" });
+  });
+
+  it("conserva un delta vacío y los saltos de línea tal cual", () => {
+    expect(parseStreamLine(delta("a\nb"))).toEqual({ kind: "delta", text: "a\nb" });
+    expect(parseStreamLine(delta(""))).toEqual({ kind: "delta", text: "" });
+  });
+
+  it("ignora otros eventos de stream, otros tipos de delta y líneas vacías o no JSON", () => {
+    const other = (event: unknown) => JSON.stringify({ type: "stream_event", event });
+    expect(parseStreamLine(other({ type: "message_start" }))).toEqual({ kind: "ignore" });
+    expect(
+      parseStreamLine(
+        other({ type: "content_block_delta", delta: { type: "thinking_delta", thinking: "x" } }),
+      ),
+    ).toEqual({ kind: "ignore" });
+    expect(
+      parseStreamLine(
+        JSON.stringify({
+          type: "assistant",
+          event: { type: "content_block_delta", delta: { type: "text_delta", text: "x" } },
+        }),
+      ),
+    ).toEqual({ kind: "ignore" });
+    expect(parseStreamLine(JSON.stringify({ type: "system", subtype: "init" }))).toEqual({
+      kind: "ignore",
+    });
+    expect(parseStreamLine("")).toEqual({ kind: "ignore" });
+    expect(parseStreamLine("no es json")).toEqual({ kind: "ignore" });
+    expect(parseStreamLine("null")).toEqual({ kind: "ignore" });
+  });
+
+  it("lee el result: éxito, is_error con detalle y stop_reason", () => {
+    expect(
+      parseStreamLine(JSON.stringify({ type: "result", subtype: "success", is_error: false })),
+    ).toEqual({ kind: "result", failure: undefined });
+    const failed = parseStreamLine(
+      JSON.stringify({ type: "result", is_error: true, result: "se cayó" }),
+    );
+    expect(failed).toEqual({
+      kind: "result",
+      failure: new ClaudeCliError("failed", "Claude falló: se cayó"),
+    });
+    const noDetail = parseStreamLine(JSON.stringify({ type: "result", is_error: true }));
+    expect(noDetail.kind === "result" && noDetail.failure?.message).toBe(
+      "Claude falló: error sin detalle",
+    );
+    const cut = parseStreamLine(
+      JSON.stringify({ type: "result", is_error: false, stop_reason: "max_tokens" }),
+    );
+    expect(cut.kind === "result" && cut.failure?.kind).toBe("truncated");
+    const refused = parseStreamLine(
+      JSON.stringify({ type: "result", is_error: false, stop_reason: "refusal" }),
+    );
+    expect(refused.kind === "result" && refused.failure?.kind).toBe("refused");
+  });
+
+  it("api_retry con authentication_failed o rate_limit es un fallo; otros se ignoran", () => {
+    const retry = (error: unknown) =>
+      parseStreamLine(JSON.stringify({ type: "system", subtype: "api_retry", error }));
+    const auth = retry("authentication_failed");
+    expect(auth.kind === "failure" && auth.failure.kind).toBe("auth");
+    expect(auth.kind === "failure" && auth.failure.message).toContain("/login");
+    const rate = retry("rate_limit");
+    expect(rate.kind === "failure" && rate.failure.kind).toBe("rate-limit");
+    expect(rate.kind === "failure" && rate.failure.message).toContain("límite");
+    expect(retry("server_error")).toEqual({ kind: "ignore" });
+    expect(
+      parseStreamLine(JSON.stringify({ type: "system", subtype: "other", error: "rate_limit" })),
+    ).toEqual({ kind: "ignore" });
+  });
+});
+
+describe("notFoundError (REQ-004)", () => {
+  it("nombra el binario y cómo arreglarlo", () => {
+    const error = notFoundError("/x/claude");
+    expect(error.kind).toBe("not-found");
+    expect(error.message).toBe(
+      "No se encontró el binario de Claude (/x/claude). Instala la CLI o define CLAUDE_BIN.",
+    );
   });
 });

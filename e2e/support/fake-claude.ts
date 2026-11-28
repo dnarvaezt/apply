@@ -1,6 +1,6 @@
 import path from "node:path";
 
-/** Binario `claude` falso (el mismo de las pruebas de la API): extracción y correo sin red. */
+/** Binario `claude` falso (el mismo de las pruebas de la API): extracción, correo y CV sin red. */
 export const FAKE_CLAUDE_BIN = path.resolve(
   import.meta.dirname,
   "../../apps/api/test/fake-claude.mjs",
@@ -30,8 +30,16 @@ export const FAKE_EMAIL = {
   language: "es",
 };
 
+/** CV que "redacta" Claude, en trozos como en un stream real. */
+export const FAKE_CV_CHUNKS = [
+  "# Ana Pérez\n\n**Ingeniera Backend**\n\n",
+  "ana@example.com · Remoto\n\n## Resumen\n\n",
+  "Ingeniera con experiencia en TypeScript y PostgreSQL.\n",
+];
+
 /** Env para la API del E2E: `claude` falso que responde según la propiedad del esquema pedido. */
 export const FAKE_CLAUDE_ENV = {
   CLAUDE_BIN: FAKE_CLAUDE_BIN,
   FAKE_CLAUDE_OUTPUTS: JSON.stringify({ subject: FAKE_EMAIL, title: FAKE_VACANCY }),
+  FAKE_CLAUDE_STREAM: JSON.stringify(FAKE_CV_CHUNKS),
 };

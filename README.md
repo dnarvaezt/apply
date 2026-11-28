@@ -2,19 +2,19 @@
 
 Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local: tu perfil son archivos en `./data`; las vacantes y los CVs se guardan en Postgres (Docker).
 
-**Stack:** TypeScript · React 19 · Vite · Tailwind v4 · shadcn/ui · Biome · Hono (API local) · Claude API · embeddings locales con Transformers.js · Chrome (puppeteer-core) para el PDF.
+**Stack:** TypeScript · React 19 · Vite · Tailwind v4 · shadcn/ui · Biome · Hono (API local) · CLI `claude` · embeddings locales con Transformers.js · Chrome (puppeteer-core) para el PDF.
 
 ## Requisitos
 
 - Node 22+ (probado con Node 26)
 - Google Chrome o Chromium instalado. Si no está en una ruta estándar, define `CHROME_PATH`.
-- Una API key de Anthropic
+- La CLI `claude` instalada y con sesión iniciada (suscripción); la API no usa ninguna API key
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env   # ANTHROPIC_API_KEY, POSTGRES_PASSWORD y DATABASE_URL
+cp .env.example .env   # POSTGRES_PASSWORD y DATABASE_URL
 npm run db:up && npm run db:migrate   # Postgres de desarrollo (base `apply`)
 npm run dev            # API en :3001 y web en http://localhost:5173
 ```
@@ -43,14 +43,13 @@ Las vacantes (con su empresa normalizada en `companies`) y los CVs viven en Post
 
 ## Variables de entorno
 
-| Variable            | Default                        | Uso                            |
-| ------------------- | ------------------------------ | ------------------------------ |
-| `ANTHROPIC_API_KEY` | —                              | Requerida                      |
-| `CLAUDE_MODEL`      | `claude-opus-5-5`              | Modelo para extraer y redactar |
-| `DATABASE_URL`      | —                              | Postgres de la API (requerida) |
-| `EMBED_MODEL`       | `Xenova/multilingual-e5-small` | Modelo de embeddings local     |
-| `CHROME_PATH`       | autodetección                  | Ejecutable de Chrome/Chromium  |
-| `PORT`              | `3001`                         | Puerto de la API               |
+| Variable       | Default                        | Uso                            |
+| -------------- | ------------------------------ | ------------------------------ |
+| `CLAUDE_MODEL` | `claude-opus-5-5`              | Modelo para extraer y redactar |
+| `DATABASE_URL` | —                              | Postgres de la API (requerida) |
+| `EMBED_MODEL`  | `Xenova/multilingual-e5-small` | Modelo de embeddings local     |
+| `CHROME_PATH`  | autodetección                  | Ejecutable de Chrome/Chromium  |
+| `PORT`         | `3001`                         | Puerto de la API               |
 
 ## Base de datos
 
@@ -85,8 +84,8 @@ Atajos con `make` (`make help` los lista): `make env` crea `.env` desde `.env.ex
 - `npm run coverage`: cobertura v8, falla bajo 80% de líneas o ramas
 - `npm run mutation`: Stryker sobre módulos puros, falla bajo 70%
 - `npm run mut:smoke`: canario de mutación sobre `apps/api/rag/chunk.ts`
-- `npm run claude:smoke`: smoke manual opt-in contra el `claude` real (fuera de `npm test` y del e2e); sale con exit 1 si `apiKeySource` no es `none` o falta `structured_output`. La extracción y el correo usan `claude -p` local: `CLAUDE_BIN` (default `claude`), `CLAUDE_MODEL` (default `claude-opus-5-5`) y `CLAUDE_TIMEOUT_MS` (default `600000`); el hijo no recibe ninguna `ANTHROPIC_*`.
-- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), `claude` falso para la vacante y el correo (`apps/api/test/fake-claude.mjs`, vía `CLAUDE_BIN`), Anthropic falso en la frontera HTTP solo para el CV (`e2e/support/fake-anthropic.ts`, vía `ANTHROPIC_BASE_URL`, hasta #54) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); el Anthropic falso usa `E2E_API_PORT + 1000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
+- `npm run claude:smoke`: smoke manual opt-in contra el `claude` real (fuera de `npm test` y del e2e); sale con exit 1 si `apiKeySource` no es `none` o falta `structured_output`. La extracción de la vacante, el correo y el CV (en streaming; se cancela si el cliente se desconecta) usan `claude -p` local: `CLAUDE_BIN` (default `claude`), `CLAUDE_MODEL` (default `claude-opus-5-5`) y `CLAUDE_TIMEOUT_MS` (default `600000`); el hijo no recibe ninguna `ANTHROPIC_*`.
+- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), `claude` falso para la vacante, el correo y el CV en streaming (`apps/api/test/fake-claude.mjs`, vía `CLAUDE_BIN`) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); Google falso usa `E2E_API_PORT + 2000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
 
 ## Estructura
 

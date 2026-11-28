@@ -10,6 +10,9 @@ export type FakeClaudeMode =
   | "no-structured"
   | "exit1"
   | "hang"
+  | "auth"
+  | "rate-limit"
+  | "no-delta"
   | "blank-image"
   | "short-image"
   | "no-transcription";
@@ -20,9 +23,14 @@ export const FAKE_TRANSCRIPTION =
 
 /**
  * Apunta `CLAUDE_BIN` al falso mientras dure la prueba. `outputs` mapea una propiedad del esquema
- * (p. ej. "subject") al `structured_output` que devuelve. `restore()` deja el env como estaba.
+ * (p. ej. "subject") al `structured_output` que devuelve; `streamChunks` son los trozos de texto que
+ * emite en modo stream. `restore()` deja el env como estaba.
  */
-export function useFakeClaude(outputs: Record<string, unknown>, mode?: FakeClaudeMode) {
+export function useFakeClaude(
+  outputs: Record<string, unknown>,
+  mode?: FakeClaudeMode,
+  streamChunks?: string[],
+) {
   // Stryker copia el proyecto a un sandbox sin el bit de ejecución.
   chmodSync(FAKE_CLAUDE_BIN, 0o755);
   const dir = mkdtempSync(path.join(tmpdir(), "fake-claude-"));
@@ -34,6 +42,7 @@ export function useFakeClaude(outputs: Record<string, unknown>, mode?: FakeClaud
     "CLAUDE_TIMEOUT_MS",
     "FAKE_CLAUDE_OUTPUTS",
     "FAKE_CLAUDE_MODE",
+    "FAKE_CLAUDE_STREAM",
     "FAKE_CLAUDE_TRANSCRIPTION",
     "FAKE_CLAUDE_CAPTURE",
     "FAKE_CLAUDE_PID_FILE",
@@ -44,6 +53,8 @@ export function useFakeClaude(outputs: Record<string, unknown>, mode?: FakeClaud
   process.env.FAKE_CLAUDE_TRANSCRIPTION = FAKE_TRANSCRIPTION;
   process.env.FAKE_CLAUDE_CAPTURE = captureFile;
   process.env.FAKE_CLAUDE_PID_FILE = pidFile;
+  if (streamChunks) process.env.FAKE_CLAUDE_STREAM = JSON.stringify(streamChunks);
+  else delete process.env.FAKE_CLAUDE_STREAM;
   if (mode) process.env.FAKE_CLAUDE_MODE = mode;
   else delete process.env.FAKE_CLAUDE_MODE;
   return {

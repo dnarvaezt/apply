@@ -11,7 +11,6 @@
     "claude:smoke": "tsx claude/smoke.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.14.0",
     "@apply/db": "*",
     "@apply/shared": "*",
     "@googleapis/gmail": "^22.1.0",

@@ -4,10 +4,13 @@
 // Entorno de control:
 //   FAKE_CLAUDE_OUTPUTS   JSON { "<propiedad>": <structured_output> }; se elige la entrada cuya
 //                         propiedad aparece en `properties` del esquema recibido.
-//   FAKE_CLAUDE_MODE      error | no-structured | exit1 | hang (default: éxito) y, solo si la entrada
+//   FAKE_CLAUDE_MODE      error | no-structured | exit1 | hang | auth | rate-limit | no-delta (default: éxito) y, solo si la entrada
 //                         trae un bloque de imagen: blank-image (transcription vacía) | short-image
 //                         (transcription de pocos caracteres) | no-transcription (sin el campo).
 //   FAKE_CLAUDE_TRANSCRIPTION  texto que "transcribe" ante un bloque de imagen.
+//   FAKE_CLAUDE_STREAM    JSON con los trozos de texto que emite en modo stream (`--include-partial-messages`).
+//                         En stream, `hang` emite el primer trozo y se queda colgado; `auth` y `rate-limit`
+//                         emiten un `api_retry` y se quedan colgados; `no-delta` solo emite el result.
 //   FAKE_CLAUDE_CAPTURE   archivo donde guarda { args, stdin } de la invocación.
 //   FAKE_CLAUDE_PID_FILE  archivo donde guarda su pid (para comprobar que el timeout lo mata).
 import { writeFileSync } from "node:fs";
@@ -33,75 +36,109 @@ if (leaked.length > 0) {
   process.exit(1);
 }
 
-const schemaText = args[args.indexOf("--json-schema") + 1] ?? "{}";
-let schema;
-try {
-  schema = JSON.parse(schemaText);
-} catch {
-  schema = {};
-}
-// `--input-format stream-json` exige también la salida stream-json, como la CLI real.
-const inputFormat = args[args.indexOf("--input-format") + 1];
-const outputFormat = args[args.indexOf("--output-format") + 1];
-if (
-  args.includes("--input-format") &&
-  (inputFormat !== "stream-json" || outputFormat !== "stream-json")
-) {
-  console.error("Error: --input-format=stream-json requires --output-format=stream-json");
-  process.exit(1);
-}
-const hasImage = stdin
-  .split("\n")
-  .filter(Boolean)
-  .some((line) => {
-    try {
-      const content = JSON.parse(line)?.message?.content;
-      return Array.isArray(content) && content.some((block) => block?.type === "image");
-    } catch {
-      return false;
-    }
+if (args.includes("--include-partial-messages")) {
+  const emit = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
+  const chunks = JSON.parse(process.env.FAKE_CLAUDE_STREAM ?? '["ok"]');
+  const delta = (text) => ({
+    type: "stream_event",
+    event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
   });
-const transcription =
-  mode === "blank-image"
-    ? ""
-    : mode === "short-image"
-      ? "poco"
-      : (process.env.FAKE_CLAUDE_TRANSCRIPTION ??
-        "Transcripción falsa de la vacante: buscamos ingeniera backend con TypeScript y PostgreSQL para operar APIs.");
-
-if (schema.$schema !== "http://json-schema.org/draft-07/schema#") {
-  console.error("Error: --json-schema is not a valid JSON Schema");
-  process.exit(1);
-}
-
-if (mode === "exit1") {
-  console.error("fake-claude: fallo simulado");
-  process.exit(1);
-}
-if (mode === "hang") {
-  setInterval(() => {}, 1000);
+  emit({ type: "system", subtype: "init", apiKeySource: "none" });
+  if (mode === "exit1") {
+    console.error("fake-claude: fallo simulado");
+    process.exit(1);
+  }
+  if (mode === "auth" || mode === "rate-limit") {
+    emit({
+      type: "system",
+      subtype: "api_retry",
+      error: mode === "auth" ? "authentication_failed" : "rate_limit",
+    });
+    setInterval(() => {}, 1000);
+  } else if (mode === "hang") {
+    emit(delta(chunks[0]));
+    setInterval(() => {}, 1000);
+  } else {
+    if (mode !== "no-delta") for (const text of chunks) emit(delta(text));
+    emit({
+      type: "result",
+      subtype: mode === "error" ? "error_during_execution" : "success",
+      is_error: mode === "error",
+      result: mode === "error" ? "fallo simulado" : chunks.join(""),
+      stop_reason: "end_turn",
+    });
+  }
 } else {
-  const result = (extra) => ({
-    type: "result",
-    subtype: "success",
-    is_error: false,
-    result: "ok",
-    ...extra,
-  });
-  const outputs = JSON.parse(process.env.FAKE_CLAUDE_OUTPUTS ?? "{}");
-  const key = Object.keys(outputs).find((k) => k in (schema.properties ?? {}));
-  const body =
-    mode === "error"
-      ? result({ subtype: "error_during_execution", is_error: true, result: "fallo simulado" })
-      : mode === "no-structured" || key === undefined
-        ? result()
-        : result({
-            structured_output:
-              hasImage &&
-              "transcription" in (schema.properties ?? {}) &&
-              mode !== "no-transcription"
-                ? { ...outputs[key], transcription }
-                : outputs[key],
-          });
-  process.stdout.write(`${JSON.stringify(body)}\n`);
+  const schemaText = args[args.indexOf("--json-schema") + 1] ?? "{}";
+  let schema;
+  try {
+    schema = JSON.parse(schemaText);
+  } catch {
+    schema = {};
+  }
+  // `--input-format stream-json` exige también la salida stream-json, como la CLI real.
+  const inputFormat = args[args.indexOf("--input-format") + 1];
+  const outputFormat = args[args.indexOf("--output-format") + 1];
+  if (
+    args.includes("--input-format") &&
+    (inputFormat !== "stream-json" || outputFormat !== "stream-json")
+  ) {
+    console.error("Error: --input-format=stream-json requires --output-format=stream-json");
+    process.exit(1);
+  }
+  const hasImage = stdin
+    .split("\n")
+    .filter(Boolean)
+    .some((line) => {
+      try {
+        const content = JSON.parse(line)?.message?.content;
+        return Array.isArray(content) && content.some((block) => block?.type === "image");
+      } catch {
+        return false;
+      }
+    });
+  const transcription =
+    mode === "blank-image"
+      ? ""
+      : mode === "short-image"
+        ? "poco"
+        : (process.env.FAKE_CLAUDE_TRANSCRIPTION ??
+          "Transcripción falsa de la vacante: buscamos ingeniera backend con TypeScript y PostgreSQL para operar APIs.");
+
+  if (schema.$schema !== "http://json-schema.org/draft-07/schema#") {
+    console.error("Error: --json-schema is not a valid JSON Schema");
+    process.exit(1);
+  }
+
+  if (mode === "exit1") {
+    console.error("fake-claude: fallo simulado");
+    process.exit(1);
+  }
+  if (mode === "hang") {
+    setInterval(() => {}, 1000);
+  } else {
+    const result = (extra) => ({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "ok",
+      ...extra,
+    });
+    const outputs = JSON.parse(process.env.FAKE_CLAUDE_OUTPUTS ?? "{}");
+    const key = Object.keys(outputs).find((k) => k in (schema.properties ?? {}));
+    const body =
+      mode === "error"
+        ? result({ subtype: "error_during_execution", is_error: true, result: "fallo simulado" })
+        : mode === "no-structured" || key === undefined
+          ? result()
+          : result({
+              structured_output:
+                hasImage &&
+                "transcription" in (schema.properties ?? {}) &&
+                mode !== "no-transcription"
+                  ? { ...outputs[key], transcription }
+                  : outputs[key],
+            });
+    process.stdout.write(`${JSON.stringify(body)}\n`);
+  }
 }

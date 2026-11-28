@@ -32,6 +32,24 @@ export type ClaudeArgsInput = {
   inputFormat?: "stream-json";
 };
 
+/** Banderas que aíslan la CLI: sin settings del usuario, sin herramientas, sin MCP y sin sesión. */
+function isolationFlags(model: string, effort: "low" | "high", system: string): string[] {
+  return [
+    "--model",
+    model,
+    "--effort",
+    effort,
+    "--setting-sources",
+    "",
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--no-session-persistence",
+    "--system-prompt",
+    system,
+  ];
+}
+
 export type ClaudeImage = { mediaType: "image/png" | "image/jpeg" | "image/webp"; data: string };
 
 /** Línea `stream-json` de stdin: un mensaje de usuario con la imagen (base64) y el texto. */
@@ -61,19 +79,115 @@ export function buildClaudeArgs(input: ClaudeArgsInput): string[] {
     ...(format === "stream-json" ? ["--verbose"] : []),
     "--json-schema",
     JSON.stringify(input.jsonSchema),
-    "--model",
-    input.model,
-    "--effort",
-    "low",
-    "--setting-sources",
-    "",
-    "--tools",
-    "",
-    "--strict-mcp-config",
-    "--no-session-persistence",
-    "--system-prompt",
-    input.system,
+    ...isolationFlags(input.model, "low", input.system),
   ];
+}
+
+/** Texto libre en streaming (el CV): cada `text_delta` llega como un evento `stream_event`. */
+export function buildClaudeStreamArgs(input: { model: string; system: string }): string[] {
+  return [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--include-partial-messages",
+    ...isolationFlags(input.model, "high", input.system),
+  ];
+}
+
+export type ClaudeErrorKind =
+  | "not-found"
+  | "auth"
+  | "rate-limit"
+  | "failed"
+  | "timeout"
+  | "truncated"
+  | "refused";
+
+/** Fallo de la CLI con un mensaje que el usuario puede leer tal cual (API y SSE lo muestran). */
+export class ClaudeCliError extends Error {
+  readonly kind: ClaudeErrorKind;
+  constructor(kind: ClaudeErrorKind, message: string) {
+    super(message);
+    this.name = "ClaudeCliError";
+    this.kind = kind;
+  }
+}
+
+export function notFoundError(bin: string): ClaudeCliError {
+  return new ClaudeCliError(
+    "not-found",
+    `No se encontró el binario de Claude (${bin}). Instala la CLI o define CLAUDE_BIN.`,
+  );
+}
+
+export type StreamEvent =
+  | { kind: "delta"; text: string }
+  | { kind: "result"; failure: ClaudeCliError | undefined }
+  | { kind: "failure"; failure: ClaudeCliError }
+  | { kind: "ignore" };
+
+const IGNORE: StreamEvent = { kind: "ignore" };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function resultFailure(result: Record<string, unknown>): ClaudeCliError | undefined {
+  if (result.is_error) {
+    const detail = typeof result.result === "string" ? result.result : "error sin detalle";
+    return new ClaudeCliError("failed", `Claude falló: ${detail}`);
+  }
+  if (result.stop_reason === "max_tokens") {
+    return new ClaudeCliError("truncated", "La respuesta se cortó por longitud.");
+  }
+  if (result.stop_reason === "refusal") {
+    return new ClaudeCliError("refused", "El modelo rechazó generar el CV.");
+  }
+  return undefined;
+}
+
+/** Interpreta una línea de `--output-format stream-json`; lo que no importa al CV se ignora. */
+export function parseStreamLine(line: string): StreamEvent {
+  let event: unknown;
+  try {
+    event = JSON.parse(line);
+  } catch {
+    return IGNORE;
+  }
+  if (!isRecord(event)) return IGNORE;
+  if (event.type === "stream_event") {
+    const inner = event.event;
+    if (isRecord(inner) && inner.type === "content_block_delta" && isRecord(inner.delta)) {
+      const { delta } = inner;
+      if (delta.type === "text_delta" && typeof delta.text === "string") {
+        return { kind: "delta", text: delta.text };
+      }
+    }
+    return IGNORE;
+  }
+  if (event.type === "result") return { kind: "result", failure: resultFailure(event) };
+  if (event.type === "system" && event.subtype === "api_retry") {
+    if (event.error === "authentication_failed") {
+      return {
+        kind: "failure",
+        failure: new ClaudeCliError(
+          "auth",
+          "Claude no está autenticado. Abre `claude` en una terminal e inicia sesión con /login.",
+        ),
+      };
+    }
+    if (event.error === "rate_limit") {
+      return {
+        kind: "failure",
+        failure: new ClaudeCliError(
+          "rate-limit",
+          "Se alcanzó el límite de uso de la suscripción de Claude; intenta de nuevo más tarde.",
+        ),
+      };
+    }
+  }
+  return IGNORE;
 }
 
 /** Con una `ANTHROPIC_*` en el env la CLI usa la API en vez de la suscripción: se quitan todas, incluso las vacías. */
