@@ -40,6 +40,8 @@ import { createMetricsRepository } from "./metrics/repository.ts";
 import { metricRoutes } from "./metrics/routes.ts";
 import { ENV_FILE } from "./paths.ts";
 import { closeBrowser, markdownToPdf } from "./pdf.ts";
+import { createProcessRepository } from "./process/repository.ts";
+import { processRoutes } from "./process/routes.ts";
 import { EMBED_MODEL, embed } from "./rag/embed.ts";
 import { buildIndex, getIndexStatus, retrieveForVacancy } from "./rag/index.ts";
 import {
@@ -142,6 +144,7 @@ app.route(
 app.route("/", applicationRoutes({ repo: createApplicationsRepository(getDb()) }));
 app.route("/", contactRoutes({ repo: createContactsRepository(getDb()) }));
 app.route("/", metricRoutes({ repo: createMetricsRepository(getDb()) }));
+app.route("/", processRoutes({ repo: createProcessRepository(getDb()) }));
 app.route(
   "/",
   emailDraftRoutes({

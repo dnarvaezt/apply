@@ -4,5 +4,6 @@ export * from "./cv.ts";
 export * from "./email.ts";
 export * from "./gmail.ts";
 export * from "./metrics.ts";
+export * from "./process.ts";
 export * from "./types.ts";
 export * from "./vacancy.ts";

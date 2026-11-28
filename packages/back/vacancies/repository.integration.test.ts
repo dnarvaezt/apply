@@ -37,7 +37,8 @@ describe("repositorio de vacantes (AC-001)", () => {
     expect(typeof created.id).toBe("string");
     expect(new Date(created.createdAt).toISOString()).toBe(created.createdAt);
     const { id: _id, createdAt: _createdAt, ...rest } = created;
-    expect(rest).toEqual(input);
+    // #80: una vacante nueva empieza en "Por postular".
+    expect(rest).toEqual({ ...input, status: "to_apply", discardReason: null });
     expect(await repo.get(created.id)).toEqual(created);
   });
 
@@ -96,7 +97,8 @@ describe("poster, fecha y plataforma (REQ-001..007)", () => {
     });
     const created = await repo.create(input);
     const { id: _id, createdAt: _createdAt, ...rest } = created;
-    expect(rest).toEqual(input);
+    // #80: una vacante nueva empieza en "Por postular".
+    expect(rest).toEqual({ ...input, status: "to_apply", discardReason: null });
     const [platform] = await iso.db.execute(
       sql`SELECT p.slug FROM vacancies v JOIN platforms p ON p.id = v.platform_id`,
     );

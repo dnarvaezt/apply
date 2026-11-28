@@ -1,5 +1,11 @@
+import type { DiscardReason, VacancyStatus } from "./process.ts";
+
 export interface Vacancy {
   id: string;
+  /** Estado del proceso (#80). */
+  status: VacancyStatus;
+  /** Solo con `status = discarded`. */
+  discardReason: DiscardReason | null;
   createdAt: string;
   sourceUrl: string | null;
   rawText: string;

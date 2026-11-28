@@ -26,7 +26,7 @@ describe("npm run db:migrate sobre una base vacía (AC-001)", () => {
     await admin.end();
   });
 
-  it("sale con exit 0, crea la extensión vector y las 13 tablas", async () => {
+  it("sale con exit 0, crea la extensión vector y las 14 tablas", async () => {
     const result = spawnSync("npm", ["run", "db:migrate"], {
       cwd: root,
       env: { ...process.env, DATABASE_URL: urlFor(target) },
@@ -42,7 +42,6 @@ describe("npm run db:migrate sobre una base vacía (AC-001)", () => {
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' ORDER BY table_name`;
       expect(tables.map((t) => t.table_name)).toEqual([
-        "application_contacts",
         "application_events",
         "applications",
         "channels",
@@ -55,6 +54,8 @@ describe("npm run db:migrate sobre una base vacía (AC-001)", () => {
         "platforms",
         "profile_chunks",
         "vacancies",
+        "vacancy_contacts",
+        "vacancy_status_changes",
       ]);
     } finally {
       await sql.end();

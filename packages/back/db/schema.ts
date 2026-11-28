@@ -1,3 +1,4 @@
+import { DISCARD_REASONS, VACANCY_STATUSES } from "@apply/shared";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -48,6 +49,8 @@ export const applicationEventType = pgEnum("application_event_type", [
 ]);
 
 export const eventSource = pgEnum("event_source", ["auto", "manual"]);
+export const vacancyStatus = pgEnum("vacancy_status", [...VACANCY_STATUSES]);
+export const discardReason = pgEnum("discard_reason", [...DISCARD_REASONS]);
 export const postedAtPrecision = pgEnum("posted_at_precision", ["exact", "relative", "unknown"]);
 export const outboundEmailStatus = pgEnum("outbound_email_status", [
   "draft",
@@ -102,9 +105,19 @@ export const vacancies = pgTable(
     posterName: text("poster_name"),
     posterTitle: text("poster_title"),
     posterProfileUrl: text("poster_profile_url"),
+    /** Estado del proceso (#80); su historial vive en `vacancy_status_changes`. */
+    status: vacancyStatus("status").notNull().default("to_apply"),
+    discardReason: discardReason("discard_reason"),
     createdAt: createdAt(),
   },
-  (t) => [index("vacancies_platform_id_idx").on(t.platformId)],
+  (t) => [
+    index("vacancies_platform_id_idx").on(t.platformId),
+    index("vacancies_status_idx").on(t.status),
+    check(
+      "vacancies_discard_reason",
+      sql`(${t.status} = 'discarded') = (${t.discardReason} IS NOT NULL)`,
+    ),
+  ],
 );
 
 /** Fragmentos del perfil con su embedding; búsqueda exacta, sin índice ANN (D2). */
@@ -206,13 +219,13 @@ export const contacts = pgTable("contacts", {
   createdAt: createdAt(),
 });
 
-/** Contactos de una postulación; `is_process_start` marca el que inició el proceso (C8). */
-export const applicationContacts = pgTable(
-  "application_contacts",
+/** Contactos de la vacante (#80); `is_process_start` marca el que inició el proceso (C8). */
+export const vacancyContacts = pgTable(
+  "vacancy_contacts",
   {
-    applicationId: integer("application_id")
+    vacancyId: integer("vacancy_id")
       .notNull()
-      .references(() => applications.id),
+      .references(() => vacancies.id, { onDelete: "cascade" }),
     contactId: integer("contact_id")
       .notNull()
       .references(() => contacts.id),
@@ -220,10 +233,40 @@ export const applicationContacts = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    primaryKey({ columns: [t.applicationId, t.contactId] }),
-    uniqueIndex("application_contacts_process_start_uq")
-      .on(t.applicationId)
+    primaryKey({ columns: [t.vacancyId, t.contactId] }),
+    uniqueIndex("vacancy_contacts_process_start_uq")
+      .on(t.vacancyId)
       .where(sql`${t.isProcessStart}`),
+  ],
+);
+
+/**
+ * Historial de estados de la vacante (#80): un cambio por fila, con su nota. La API solo
+ * agrega filas; se borran con la vacante.
+ */
+export const vacancyStatusChanges = pgTable(
+  "vacancy_status_changes",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    vacancyId: integer("vacancy_id")
+      .notNull()
+      .references(() => vacancies.id, { onDelete: "cascade" }),
+    /** `null` en el primer cambio de la vacante. */
+    fromStatus: vacancyStatus("from_status"),
+    toStatus: vacancyStatus("to_status").notNull(),
+    discardReason: discardReason("discard_reason"),
+    note: text("note"),
+    channelId: integer("channel_id").references(() => channels.id),
+    source: eventSource("source").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("vacancy_status_changes_vacancy_id_idx").on(t.vacancyId, t.occurredAt),
+    check(
+      "vacancy_status_changes_discard_reason",
+      sql`(${t.toStatus} = 'discarded') = (${t.discardReason} IS NOT NULL)`,
+    ),
   ],
 );
 

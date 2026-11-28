@@ -7,12 +7,14 @@ import type {
   ApplicationTimeline,
   Channel,
   EventSource,
+  VacancyStatus,
 } from "@apply/shared";
 import { asc, desc, eq } from "drizzle-orm";
 import { applicationEvents, applications, channels, cvs, vacancies } from "#db";
-import { isLinked, listApplicationContacts } from "../contacts/repository.ts";
+import { isLinked, listVacancyContacts } from "../contacts/repository.ts";
 import type { Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
+import { advanceVacancy } from "../process/repository.ts";
 import { canRecord, isActive, isClassifying, isTerminal, next } from "./status.ts";
 
 /**
@@ -109,19 +111,28 @@ async function channelId(tx: Executor, slug: string | null | undefined): Promise
   return row.id;
 }
 
-/** Contacto del evento: debe estar vinculado a la postulación. */
+/** Contacto del evento: debe estar vinculado a la vacante de la postulación (#80). */
 async function eventContactId(
   tx: Executor,
-  applicationId: number,
+  vacancyId: number,
   raw: string | null | undefined,
 ): Promise<number | null> {
   if (!raw) return null;
   const id = parseId(raw);
-  if (id === null || !(await isLinked(tx, applicationId, id))) {
-    throw new InvalidEventError("El contacto no está vinculado a la postulación");
+  if (id === null || !(await isLinked(tx, vacancyId, id))) {
+    throw new InvalidEventError("El contacto no está vinculado a la vacante");
   }
   return id;
 }
+
+/**
+ * Estado al que la app mueve la vacante (#80) cuando registra el hecho sola: el envío del
+ * correo la deja Postulada y una respuesta en Gmail, En contacto.
+ */
+const AUTO_ADVANCE: Partial<Record<ApplicationEventType, VacancyStatus>> = {
+  applied: "applied",
+  contacted: "contacted",
+};
 
 /**
  * Guarda el evento (append-only) y actualiza el estado materializado en la misma transacción
@@ -152,7 +163,7 @@ async function recordEvent(
       occurredAt,
       channelId: await channelId(tx, input.channel),
       source: input.source,
-      contactId: await eventContactId(tx, applicationId, input.contactId),
+      contactId: await eventContactId(tx, current.vacancyId, input.contactId),
       notes: input.notes ?? null,
       gmailMessageId: input.gmailMessageId ?? null,
     })
@@ -181,6 +192,14 @@ async function recordEvent(
     .where(eq(applications.id, applicationId))
     .returning();
   if (!updated) throw new Error("No se pudo actualizar la postulación");
+
+  const target = AUTO_ADVANCE[input.type];
+  if (input.source === "auto" && target) {
+    await advanceVacancy(tx, current.vacancyId, target, {
+      channel: input.channel ?? null,
+      occurredAt,
+    });
+  }
 
   const event = await findEvent(tx, eq(applicationEvents.id, inserted.id));
   return { event, application: toApplication(updated), duplicate: false };
@@ -273,7 +292,7 @@ export function createApplicationsRepository(db: Executor) {
         .leftJoin(channels, eq(channels.id, applicationEvents.channelId))
         .where(eq(applicationEvents.applicationId, Number(application.id)))
         .orderBy(asc(applicationEvents.occurredAt), asc(applicationEvents.id));
-      const contacts = await listApplicationContacts(db, Number(application.id));
+      const contacts = await listVacancyContacts(db, Number(application.vacancyId));
       return { application, events: rows.map(toEvent), contacts };
     },
   };

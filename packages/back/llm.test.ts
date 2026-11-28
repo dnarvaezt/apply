@@ -225,6 +225,8 @@ describe("draftApplicationEmail (AC-001, AC-002)", () => {
     ...newVacancy({ language: "en", posterName: "Jane Doe", title: "Backend Engineer" }),
     id: "7",
     createdAt: "2026-11-01T00:00:00.000Z",
+    status: "to_apply",
+    discardReason: null,
     ...overrides,
   });
   const CV = "# Ana Pérez\n\n## Summary\n\nTypeScript and PostgreSQL engineer.";
@@ -334,6 +336,8 @@ describe("streamCv (REQ-001, REQ-002, REQ-004)", () => {
     ...newVacancy({ title: "Backend Engineer", rawText: "texto original" }),
     id: "7",
     createdAt: "2026-11-01T00:00:00.000Z",
+    status: "to_apply",
+    discardReason: null,
   };
   const CHUNKS = ["# Ana\n\n", "**Dev**\n", "fin"];
 

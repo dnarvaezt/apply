@@ -9,7 +9,9 @@ import { resolvePostedAt } from "./posted-at.ts";
 import { vacancySource } from "./source.ts";
 
 /** `fromImage` solo decide la columna `source`: no forma parte del contrato `Vacancy`. */
-export type NewVacancy = Omit<Vacancy, "id" | "createdAt"> & { fromImage?: boolean };
+export type NewVacancy = Omit<Vacancy, "id" | "createdAt" | "status" | "discardReason"> & {
+  fromImage?: boolean;
+};
 
 const columns = {
   id: vacancies.id,
@@ -32,6 +34,8 @@ const columns = {
   posterProfileUrl: vacancies.posterProfileUrl,
   postedAt: vacancies.postedAt,
   postedAtPrecision: vacancies.postedAtPrecision,
+  status: vacancies.status,
+  discardReason: vacancies.discardReason,
 };
 
 type Row = {
@@ -60,6 +64,8 @@ function toVacancy(row: Row): Vacancy {
     posterProfileUrl: row.posterProfileUrl,
     postedAt: row.postedAt ? row.postedAt.toISOString() : null,
     postedAtPrecision: row.postedAtPrecision as Vacancy["postedAtPrecision"],
+    status: row.status as Vacancy["status"],
+    discardReason: row.discardReason,
   };
 }
 
@@ -176,7 +182,8 @@ export function createVacanciesRepository(db: Db) {
     },
 
     /**
-     * Borra la vacante y sus informes de match; los CVs sobreviven con `vacancy_id` nulo
+     * Borra la vacante, sus informes de match y su proceso (historial y contactos vinculados,
+     * en cascada); los CVs sobreviven con `vacancy_id` nulo
      * (hoy el CV también queda aunque se borre su vacante). Idempotente.
      */
     async remove(id: string): Promise<void> {

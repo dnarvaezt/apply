@@ -46,7 +46,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await iso.db.execute(
-    sql`TRUNCATE gmail_sync_state, outbound_emails, application_contacts, contacts, application_events, applications, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE gmail_sync_state, outbound_emails, vacancy_status_changes, vacancy_contacts, contacts, application_events, applications, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
   );
   google = await startFakeGoogle();
   tokenDir = await mkdtemp(path.join(tmpdir(), "apply-sync-"));
@@ -101,6 +101,7 @@ async function sentApplication() {
   const [message] = google.sent;
   if (!message) throw new Error("Gmail falso no registró el envío");
   return {
+    vacancyId: vacancy.id,
     applicationId: outcome.draft.applicationId,
     sentAt: new Date(outcome.draft.sentAt),
     threadId: message.threadId,
@@ -189,7 +190,7 @@ describe("sincronización de respuestas con Gmail (#22)", () => {
 
   it("AC-004: busca correos del contacto con from: y after: con el epoch del envío", async () => {
     const sent = await sentApplication();
-    const contact = await createContactsRepository(iso.db).addToApplication(sent.applicationId, {
+    const contact = await createContactsRepository(iso.db).addToVacancy(sent.vacancyId, {
       name: "Laura Gómez",
       email: "Laura@ACME.example",
     });
@@ -215,11 +216,14 @@ describe("sincronización de respuestas con Gmail (#22)", () => {
     expect(google.searches).toContain(`from:laura@acme.example after:${epoch}`);
     const [event] = await autoEvents(sent.applicationId);
     expect(event).toMatchObject({ gmailMessageId: "new-thread", contactId: contact.id });
+    // #80: la respuesta mueve la vacante de Postulada a En contacto.
+    const vacancy = await createVacanciesRepository(iso.db).get(sent.vacancyId);
+    expect(vacancy?.status).toBe("contacted");
   });
 
   it("una respuesta en el hilo de un contacto conocido queda asociada a ese contacto", async () => {
     const sent = await sentApplication();
-    const contact = await createContactsRepository(iso.db).addToApplication(sent.applicationId, {
+    const contact = await createContactsRepository(iso.db).addToVacancy(sent.vacancyId, {
       name: "Laura Gómez",
       email: "laura@acme.example",
     });

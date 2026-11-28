@@ -55,7 +55,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await iso.db.execute(
-    sql`TRUNCATE application_events, application_contacts, contacts, applications, match_reports, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE application_events, vacancy_status_changes, vacancy_contacts, contacts, applications, match_reports, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -82,8 +82,8 @@ async function newApplication(body: Record<string, unknown> = {}): Promise<Appli
   return (await res.json()) as Application;
 }
 
-async function addContact(applicationId: string, body: unknown): Promise<ApplicationContact> {
-  const res = await call("POST", `/applications/${applicationId}/contacts`, body);
+async function addContact(vacancyId: string, body: unknown): Promise<ApplicationContact> {
+  const res = await call("POST", `/vacancies/${vacancyId}/contacts`, body);
   expect(res.status).toBe(201);
   return applicationContactSchema.parse(await res.json());
 }
@@ -94,10 +94,10 @@ async function timeline(applicationId: string): Promise<ApplicationTimeline> {
   ).json()) as ApplicationTimeline;
 }
 
-describe("contactos de una postulación (REQ-001, REQ-002)", () => {
+describe("contactos de la vacante (REQ-001, REQ-002, #80)", () => {
   it("AC-001: crear un contacto, vincularlo y registrar un contacted por linkedin funciona sin Gmail", async () => {
     const application = await newApplication({ appliedAt: "2026-11-01T09:00:00.000Z" });
-    const contact = await addContact(application.id, LAURA);
+    const contact = await addContact(application.vacancyId, LAURA);
     expect(contact).toEqual({
       id: "1",
       ...LAURA,
@@ -131,7 +131,11 @@ describe("contactos de una postulación (REQ-001, REQ-002)", () => {
 
   it("los campos opcionales vacíos se guardan como null", async () => {
     const application = await newApplication();
-    const contact = await addContact(application.id, { name: " Ana ", email: "", phone: "  " });
+    const contact = await addContact(application.vacancyId, {
+      name: " Ana ",
+      email: "",
+      phone: "  ",
+    });
     expect(contact).toMatchObject({
       name: "Ana",
       title: null,
@@ -144,7 +148,7 @@ describe("contactos de una postulación (REQ-001, REQ-002)", () => {
 
   it("editar un contacto actualiza sus datos y conserva el vínculo", async () => {
     const application = await newApplication();
-    const contact = await addContact(application.id, LAURA);
+    const contact = await addContact(application.vacancyId, LAURA);
 
     const res = await call("PUT", `/contacts/${contact.id}`, {
       name: "Laura G.",
@@ -174,26 +178,26 @@ describe("contactos de una postulación (REQ-001, REQ-002)", () => {
     [{ name: "Ana", isProcessStart: "sí" }],
   ])("valida el contacto: %j responde 400", async (body) => {
     const application = await newApplication();
-    const res = await call("POST", `/applications/${application.id}/contacts`, body);
+    const res = await call("POST", `/vacancies/${application.vacancyId}/contacts`, body);
     expect(res.status).toBe(400);
     expect((await timeline(application.id)).contacts).toEqual([]);
   });
 
-  it("404 para una postulación o un contacto inexistente", async () => {
-    expect((await call("POST", "/applications/99/contacts", LAURA)).status).toBe(404);
-    expect((await call("POST", "/applications/x/contacts", LAURA)).status).toBe(404);
+  it("404 para una vacante o un contacto inexistente", async () => {
+    expect((await call("POST", "/vacancies/99/contacts", LAURA)).status).toBe(404);
+    expect((await call("POST", "/vacancies/x/contacts", LAURA)).status).toBe(404);
     expect((await call("PUT", "/contacts/99", LAURA)).status).toBe(404);
     expect((await call("PUT", "/contacts/x", LAURA)).status).toBe(404);
     expect((await call("PUT", "/contacts/1", { name: "" })).status).toBe(400);
-    expect(
-      (await call("PATCH", "/applications/1/contacts/1", { isProcessStart: true })).status,
-    ).toBe(404);
+    expect((await call("PATCH", "/vacancies/1/contacts/1", { isProcessStart: true })).status).toBe(
+      404,
+    );
   });
 
-  it("un contacto de otra postulación no se acepta en un evento", async () => {
+  it("un contacto de otra vacante no se acepta en un evento", async () => {
     const a = await newApplication();
     const b = await newApplication();
-    const foreign = await addContact(b.id, LAURA);
+    const foreign = await addContact(b.vacancyId, LAURA);
     const res = await call("POST", `/applications/${a.id}/events`, {
       type: "contacted",
       source: "manual",
@@ -207,11 +211,11 @@ describe("contactos de una postulación (REQ-001, REQ-002)", () => {
 describe("inicio de proceso (REQ-005)", () => {
   it("AC-004: marcar un contacto como inicio de proceso se guarda y se puede desmarcar", async () => {
     const application = await newApplication();
-    const laura = await addContact(application.id, LAURA);
-    const ana = await addContact(application.id, { name: "Ana", isProcessStart: true });
+    const laura = await addContact(application.vacancyId, LAURA);
+    const ana = await addContact(application.vacancyId, { name: "Ana", isProcessStart: true });
     expect(ana.isProcessStart).toBe(true);
 
-    const marked = await call("PATCH", `/applications/${application.id}/contacts/${laura.id}`, {
+    const marked = await call("PATCH", `/vacancies/${application.vacancyId}/contacts/${laura.id}`, {
       isProcessStart: true,
     });
     expect(marked.status).toBe(200);
@@ -224,14 +228,18 @@ describe("inicio de proceso (REQ-005)", () => {
       ["Ana", false],
     ]);
 
-    const unmarked = await call("PATCH", `/applications/${application.id}/contacts/${laura.id}`, {
-      isProcessStart: false,
-    });
+    const unmarked = await call(
+      "PATCH",
+      `/vacancies/${application.vacancyId}/contacts/${laura.id}`,
+      {
+        isProcessStart: false,
+      },
+    );
     expect(unmarked.status).toBe(200);
     expect((await timeline(application.id)).contacts.every((c) => !c.isProcessStart)).toBe(true);
 
     expect(
-      (await call("PATCH", `/applications/${application.id}/contacts/${laura.id}`, {})).status,
+      (await call("PATCH", `/vacancies/${application.vacancyId}/contacts/${laura.id}`, {})).status,
     ).toBe(400);
   });
 });
