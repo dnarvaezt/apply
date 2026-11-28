@@ -11,7 +11,7 @@
 //   FAKE_CLAUDE_STREAM    JSON con los trozos de texto que emite en modo stream (`--include-partial-messages`).
 //                         En stream, `hang` emite el primer trozo y se queda colgado; `auth` y `rate-limit`
 //                         emiten un `api_retry` y se quedan colgados; `no-delta` solo emite el result.
-//   FAKE_CLAUDE_CAPTURE   archivo donde guarda { args, stdin } de la invocación.
+//   FAKE_CLAUDE_CAPTURE   archivo donde guarda { args, stdin, mcpOutputTokens } de la invocación.
 //   FAKE_CLAUDE_PID_FILE  archivo donde guarda su pid (para comprobar que el timeout lo mata).
 import { writeFileSync } from "node:fs";
 
@@ -28,7 +28,11 @@ const stdin = await new Promise((resolve) => {
   });
   process.stdin.on("end", () => resolve(data));
 });
-if (FAKE_CLAUDE_CAPTURE) writeFileSync(FAKE_CLAUDE_CAPTURE, JSON.stringify({ args, stdin }));
+if (FAKE_CLAUDE_CAPTURE)
+  writeFileSync(
+    FAKE_CLAUDE_CAPTURE,
+    JSON.stringify({ args, stdin, mcpOutputTokens: process.env.MAX_MCP_OUTPUT_TOKENS ?? null }),
+  );
 
 const leaked = Object.keys(process.env).filter((k) => k.startsWith("ANTHROPIC_"));
 if (leaked.length > 0) {

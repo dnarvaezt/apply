@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { Vacancy } from "@apply/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -136,11 +139,29 @@ describe("extractVacancyFromWeb (#69)", () => {
   const URL = "https://jobs.example.com/view/42";
   const PAGE =
     "Ingeniero backend con TypeScript y PostgreSQL para operar APIs en producción. ".repeat(2);
-  const saved = process.env.CHROME_MCP_BROWSER_URL;
+  const saved = {
+    dir: process.env.CHROME_USER_DATA_DIR,
+    headless: process.env.CHROME_MCP_HEADLESS,
+  };
+  const restore = (key: string, value: string | undefined) => {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  };
+  const dirs: string[] = [];
   afterEach(() => {
-    if (saved === undefined) delete process.env.CHROME_MCP_BROWSER_URL;
-    else process.env.CHROME_MCP_BROWSER_URL = saved;
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+    restore("CHROME_USER_DATA_DIR", saved.dir);
+    restore("CHROME_MCP_HEADLESS", saved.headless);
   });
+  /** Chrome del usuario con la depuración remota activada (o no). */
+  const userChrome = (debugging: boolean) => {
+    const dir = mkdtempSync(path.join(tmpdir(), "apply-chrome-"));
+    dirs.push(dir);
+    if (debugging) writeFileSync(path.join(dir, "DevToolsActivePort"), "9222\n/devtools/browser/x");
+    process.env.CHROME_USER_DATA_DIR = dir;
+    delete process.env.CHROME_MCP_HEADLESS;
+    return dir;
+  };
   const mcpServer = (args: string[]) =>
     (
       JSON.parse(args[args.indexOf("--mcp-config") + 1] as string) as {
@@ -148,36 +169,54 @@ describe("extractVacancyFromWeb (#69)", () => {
       }
     ).mcpServers["chrome-devtools"];
 
-  it("abre la URL con el MCP de Chrome, solo con herramientas de lectura", async () => {
-    delete process.env.CHROME_MCP_BROWSER_URL;
+  it("abre la URL en una pestaña nueva del Chrome del usuario, con su sesión (#71)", async () => {
+    const dir = userChrome(true);
     const f = useFake({ pageText: { ...extracted(), pageText: PAGE } });
     await expect(extractVacancyFromWeb(URL)).resolves.toMatchObject({
       title: "Ingeniero Backend",
       pageText: PAGE,
     });
-    const { args, stdin } = f.capture();
+    const { args, stdin, mcpOutputTokens } = f.capture();
+    // Un snapshot de LinkedIn (~40 000 caracteres) supera el límite por defecto de la CLI: sin subirlo,
+    // la CLI lo guarda en un archivo que Claude no puede leer y la vacante sale vacía.
+    expect(Number(mcpOutputTokens)).toBeGreaterThanOrEqual(100_000);
     expect(stdin).toContain(JSON.stringify(URL));
+    expect(stdin).toContain("new_page");
+    expect(stdin).toContain("close_page");
     expect(args[args.indexOf("--allowedTools") + 1]).toBe(
-      "mcp__chrome-devtools__navigate_page,mcp__chrome-devtools__wait_for,mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__new_page,mcp__chrome-devtools__wait_for,mcp__chrome-devtools__take_snapshot,mcp__chrome-devtools__close_page",
     );
     expect(args[args.indexOf("--tools") + 1]).toBe("");
     expect(args).toContain("--strict-mcp-config");
     const server = mcpServer(args);
     expect(server?.command).toBe(process.execPath);
-    expect(server?.args).toEqual(expect.arrayContaining(["--headless", "--isolated"]));
+    expect(server?.args).toEqual(
+      expect.arrayContaining(["--autoConnect", "--userDataDir", dir, "--backgroundNewPages"]),
+    );
+    expect(server?.args).not.toContain("--headless");
     const schema = JSON.parse(args[args.indexOf("--json-schema") + 1] as string) as {
       required: string[];
     };
     expect(schema.required).toContain("pageText");
   });
 
-  it("con CHROME_MCP_BROWSER_URL se conecta al Chrome abierto en vez de lanzar uno", async () => {
-    process.env.CHROME_MCP_BROWSER_URL = "http://127.0.0.1:9222";
+  it("sin la depuración remota activada falla con el paso a seguir y no llama a Claude (#71)", async () => {
+    userChrome(false);
+    const f = useFake({ pageText: { ...extracted(), pageText: PAGE } });
+    await expect(extractVacancyFromWeb(URL)).rejects.toThrow(
+      /chrome:\/\/inspect\/#remote-debugging/,
+    );
+    expect(f.invoked()).toBe(false);
+  });
+
+  it("con CHROME_MCP_HEADLESS=true lanza un Chrome headless con perfil temporal", async () => {
+    userChrome(false);
+    process.env.CHROME_MCP_HEADLESS = "true";
     const f = useFake({ pageText: { ...extracted(), pageText: PAGE } });
     await extractVacancyFromWeb(URL);
     const server = mcpServer(f.capture().args);
-    expect(server?.args).toEqual(expect.arrayContaining(["--browserUrl", "http://127.0.0.1:9222"]));
-    expect(server?.args).not.toContain("--headless");
+    expect(server?.args).toEqual(expect.arrayContaining(["--headless", "--isolated"]));
+    expect(server?.args).not.toContain("--autoConnect");
   });
 });
 
