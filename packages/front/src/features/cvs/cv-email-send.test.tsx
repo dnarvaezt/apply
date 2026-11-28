@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
 import type { EmailDraft } from "@apply/shared";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CvEmailDraft } from "./cv-email-draft";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 const DRAFT: EmailDraft = {
@@ -53,7 +54,22 @@ async function openPreview() {
   fireEvent.click(await screen.findByRole("button", { name: "Vista previa del envío" }));
 }
 
+describe("CvEmailDraft con Gmail oculto", () => {
+  it("muestra el borrador para copiarlo y no ofrece enviar con Gmail", async () => {
+    vi.stubEnv("NEXT_PUBLIC_GMAIL", "");
+    serve(reply(DRAFT));
+    render(<CvEmailDraft cvId="c1" />);
+    expect(((await screen.findByLabelText("Asunto")) as HTMLInputElement).value).toBe(
+      DRAFT.subject,
+    );
+    expect(screen.queryByRole("button", { name: "Vista previa del envío" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Enviar con Gmail" })).toBeNull();
+  });
+});
+
 describe("CvEmailDraft: envío con Gmail (#21)", () => {
+  beforeEach(() => vi.stubEnv("NEXT_PUBLIC_GMAIL", "1"));
+
   it("AC-002: la vista previa muestra lo que se envía y exige confirmar antes de enviar", async () => {
     const fetchMock = serve(reply(DRAFT), reply(SENT));
     render(<CvEmailDraft cvId="c1" />);

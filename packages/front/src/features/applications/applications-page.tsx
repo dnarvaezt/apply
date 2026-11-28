@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isGmailEnabled } from "@/features/gmail/gmail-enabled";
 import type { SelectRoute } from "@/lib/route-selection";
 import { ApplicationDetail } from "./application-detail";
 import { ApplicationsList } from "./applications-list";
@@ -90,7 +91,7 @@ export function ApplicationsPage({
           <CardTitle>Línea de tiempo</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <ReplySyncNotice status={syncStatus} />
+          {isGmailEnabled() && <ReplySyncNotice status={syncStatus} />}
           <TimelineBody
             selectedId={selectedId}
             timeline={timeline}

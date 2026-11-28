@@ -108,6 +108,8 @@ Rutas de la web (cada vista se abre, recarga y comparte por su URL; atrás y ade
 | `/metrics`                            | métricas                                            |
 | `/gmail`                              | conexión con Gmail                                  |
 
+`/gmail`, «Enviar con Gmail» y el aviso de respuestas están ocultos por ahora; `NEXT_PUBLIC_GMAIL=1` los muestra (`packages/front/src/features/gmail/gmail-enabled.ts`).
+
 En desarrollo Next reenvía `/api/*` a la API (`API_PORT`, 3001 por defecto; ver `packages/front/next.config.ts`).
 
 Monorrepo con npm workspaces (`packages/*`) y un único `package-lock.json`. `data/`, `.cache/models` y `.env` se resuelven siempre en la raíz del repo (`packages/back/paths.ts`), sin importar el cwd.
