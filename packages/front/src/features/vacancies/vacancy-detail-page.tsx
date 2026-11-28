@@ -3,6 +3,7 @@ import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LoadFailure, LoadingBlock } from "@/components/load-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -89,7 +90,6 @@ export function VacancyDetailPage({
   const cv = cvs[0] ?? null;
 
   async function remove() {
-    if (!confirm(`¿Eliminar la vacante "${vacancy.title}"?`)) return;
     try {
       await api.vacancies.remove(vacancy.id);
       toast.success("Vacante eliminada");
@@ -118,9 +118,17 @@ export function VacancyDetailPage({
             >
               <Pencil /> Editar
             </Link>
-            <Button variant="ghost" onClick={remove}>
-              <Trash2 /> Eliminar
-            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button variant="ghost">
+                  <Trash2 /> Eliminar
+                </Button>
+              }
+              title={`¿Eliminar la vacante "${vacancy.title}"?`}
+              description="Se borran la vacante y su análisis de match; su CV se conserva sin vacante. No se puede deshacer."
+              confirmLabel="Eliminar vacante"
+              onConfirm={() => void remove()}
+            />
           </div>
         </div>
       </header>

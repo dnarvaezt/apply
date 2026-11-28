@@ -26,6 +26,7 @@ function serve() {
   const saved: { markdown: string }[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (init?.method === "DELETE") return reply({ ok: true });
     if (init?.method === "PUT" && url.endsWith("/cvs/c1")) {
       const body = JSON.parse(String(init.body)) as { markdown: string; title: string };
       saved.push(body);
@@ -33,11 +34,10 @@ function serve() {
     }
     if (url.endsWith("/cvs")) return reply([CV]);
     if (url.endsWith("/cvs/c1")) return reply(CV);
-    if (url.endsWith("/match")) return reply({ error: "sin informe" }, 404);
     return reply(null);
   });
   vi.stubGlobal("fetch", fetchMock);
-  return saved;
+  return Object.assign(saved, { fetchMock });
 }
 
 const editTab = () => screen.findByRole("tab", { name: "Editar" });
@@ -149,5 +149,39 @@ describe("CvEditor: carga", () => {
 
     expect((await screen.findByRole("alert")).textContent).toContain("CV no encontrado");
     expect(screen.getByRole("button", { name: "Reintentar" })).toBeTruthy();
+  });
+});
+
+describe("CvEditor: eliminar", () => {
+  const deletes = (fetchMock: ReturnType<typeof vi.fn>) =>
+    fetchMock.mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === "DELETE",
+    );
+
+  it("Eliminar CV pide confirmación en un diálogo que nombra el CV y borra al confirmar", async () => {
+    const { fetchMock } = serve();
+    const nativeConfirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", nativeConfirm);
+    const onDeleted = vi.fn();
+    render(<CvEditor cvId="c1" onDeleted={onDeleted} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Eliminar CV" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("CV Backend");
+    expect(deletes(fetchMock)).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
+    expect(deletes(fetchMock)).toHaveLength(1);
+    expect(nativeConfirm).not.toHaveBeenCalled();
+  });
+
+  it("Cancelar no borra el CV", async () => {
+    const { fetchMock } = serve();
+    render(<CvEditor cvId="c1" onDeleted={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Eliminar CV" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(deletes(fetchMock)).toHaveLength(0);
   });
 });

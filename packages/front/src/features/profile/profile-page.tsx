@@ -2,6 +2,7 @@ import type { IndexStatus, ProfileFile } from "@apply/shared";
 import { DatabaseZap, FilePlus2, RefreshCw, Save, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,9 +52,12 @@ export function ProfilePage({
     setDraft(file?.content ?? "");
   }, [selected, files]);
 
+  // Archivo que el usuario quiere abrir mientras el actual tiene cambios sin guardar.
+  const [discardFor, setDiscardFor] = useState<string | null>(null);
+
   function open(file: ProfileFile) {
-    if (dirty && !confirm("Hay cambios sin guardar. ¿Descartarlos?")) return;
-    onSelect(file.name);
+    if (dirty) setDiscardFor(file.name);
+    else onSelect(file.name);
   }
 
   async function save() {
@@ -82,7 +86,7 @@ export function ProfilePage({
   }
 
   async function remove() {
-    if (!selected || !confirm(`¿Eliminar ${selected}?`)) return;
+    if (!selected) return;
     await api.profile.remove(selected);
     await refresh();
     onSelect(null);
@@ -224,9 +228,29 @@ export function ProfilePage({
             <Button onClick={save} disabled={!dirty}>
               <Save /> Guardar
             </Button>
-            <Button variant="ghost" onClick={remove} disabled={!selected}>
-              <Trash2 /> Eliminar
-            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button variant="ghost" disabled={!selected}>
+                  <Trash2 /> Eliminar
+                </Button>
+              }
+              title={`¿Eliminar ${selected}?`}
+              description="Se borra el archivo del perfil. No se puede deshacer."
+              confirmLabel="Eliminar archivo"
+              onConfirm={() => void remove()}
+            />
+            <ConfirmDialog
+              open={discardFor !== null}
+              onOpenChange={(next) => {
+                if (!next) setDiscardFor(null);
+              }}
+              title="¿Descartar los cambios sin guardar?"
+              description={`Se pierden los cambios de ${selected} que no guardaste.`}
+              confirmLabel="Descartar cambios"
+              onConfirm={() => {
+                if (discardFor) onSelect(discardFor);
+              }}
+            />
           </div>
         </CardContent>
       </Card>

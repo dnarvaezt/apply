@@ -21,9 +21,17 @@ export async function openDetailTab(
   );
 }
 
-/** Elimina la vacante abierta en su detalle y espera la lista vacía; quien llama acepta el diálogo. */
+/** Confirma en el AlertDialog de shadcn abierto con el botón que repite el verbo (#79). */
+export async function confirmInDialog(page: Page, action: string): Promise<void> {
+  const dialog = page.getByRole("alertdialog");
+  await dialog.getByRole("button", { name: action, exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
+/** Elimina la vacante abierta en su detalle y espera la lista vacía. */
 export async function deleteOpenVacancy(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Eliminar", exact: true }).click();
+  await confirmInDialog(page, "Eliminar vacante");
   await expect(page).toHaveURL(/\/vacancies$/);
   await expect(page.getByText("Aún no hay vacantes")).toBeVisible();
 }
