@@ -1,4 +1,4 @@
-import type { IndexStatus, ProfileFile } from "@apply/shared";
+import type { IndexStatus, ProfileFile, ProfileOrder } from "@apply/shared";
 import { applicationsApi } from "./api/applications.ts";
 import { contactsApi } from "./api/contacts.ts";
 import { cvsApi } from "./api/cvs.ts";
@@ -21,6 +21,14 @@ export const api = {
         body: json({ content }),
       }),
     remove: (name: string) => request(`/profile/${encodeURIComponent(name)}`, { method: "DELETE" }),
+    rename: (from: string, to: string) =>
+      request<{ name: string }>(`/profile/${encodeURIComponent(from)}/rename`, {
+        method: "POST",
+        body: json({ to }),
+      }),
+    order: () => request<ProfileOrder>("/profile-order"),
+    setOrder: (order: ProfileOrder) =>
+      request<ProfileOrder>("/profile-order", { method: "PUT", body: json(order) }),
   },
   index: {
     status: () => request<IndexStatus>("/index/status"),

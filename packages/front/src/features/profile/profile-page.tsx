@@ -1,4 +1,4 @@
-import type { IndexStatus, ProfileFile } from "@apply/shared";
+import type { IndexStatus, ProfileFile, ProfileOrder } from "@apply/shared";
 import { DatabaseZap, FilePlus2, RefreshCw, Save, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import type { SelectRoute } from "@/lib/route-selection";
 import { cn } from "@/lib/utils";
+import { ProfileFileList } from "./profile-file-list";
+import { moveName } from "./profile-order.ts";
 
 export function ProfilePage({
   selectedId: routeId,
@@ -21,6 +23,7 @@ export function ProfilePage({
   onSelect: SelectRoute;
 }) {
   const [files, setFiles] = useState<ProfileFile[]>([]);
+  const [order, setOrder] = useState<ProfileOrder>({ mode: "alpha", order: [] });
   const selected = routeId ?? files[0]?.name ?? null;
   const [draft, setDraft] = useState("");
   const [newName, setNewName] = useState("");
@@ -32,8 +35,13 @@ export function ProfilePage({
   const dirty = current !== null && draft !== current.content;
 
   const refresh = useCallback(async () => {
-    const [list, st] = await Promise.all([api.profile.list(), api.index.status()]);
+    const [list, st, ord] = await Promise.all([
+      api.profile.list(),
+      api.index.status(),
+      api.profile.order(),
+    ]);
     setFiles(list);
+    setOrder(ord);
     setStatus(st);
     return list;
   }, []);
@@ -55,9 +63,32 @@ export function ProfilePage({
   // Archivo que el usuario quiere abrir mientras el actual tiene cambios sin guardar.
   const [discardFor, setDiscardFor] = useState<string | null>(null);
 
-  function open(file: ProfileFile) {
-    if (dirty) setDiscardFor(file.name);
-    else onSelect(file.name);
+  function open(name: string) {
+    if (dirty) setDiscardFor(name);
+    else onSelect(name);
+  }
+
+  async function saveOrder(next: ProfileOrder) {
+    try {
+      await api.profile.setOrder(next);
+      await refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function rename(from: string, to: string) {
+    try {
+      const { name } = await api.profile.rename(from, to);
+      // El borrador abierto sigue al archivo: no se pierde lo que no se ha guardado.
+      if (from === selected) draftFor.current = name;
+      await refresh();
+      if (from === selected) onSelect(name);
+      return true;
+    } catch (e) {
+      toast.error((e as Error).message);
+      return false;
+    }
   }
 
   async function save() {
@@ -162,19 +193,24 @@ export function ProfilePage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
-            {files.map((f) => (
-              <button
-                type="button"
-                key={f.name}
-                onClick={() => open(f)}
-                className={cn(
-                  "rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                  f.name === selected && "bg-muted font-medium",
-                )}
-              >
-                {f.name}
-              </button>
-            ))}
+            <ProfileFileList
+              names={files.map((f) => f.name)}
+              selected={selected}
+              mode={order.mode}
+              onOpen={open}
+              onModeChange={(mode) => void saveOrder({ ...order, mode })}
+              onMove={(name, delta) =>
+                void saveOrder({
+                  mode: "custom",
+                  order: moveName(
+                    files.map((f) => f.name),
+                    name,
+                    delta,
+                  ),
+                })
+              }
+              onRename={rename}
+            />
             <form
               className="mt-2 flex gap-1"
               onSubmit={(e) => {

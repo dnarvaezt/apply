@@ -1,6 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { ProfileFile } from "@apply/shared";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { createApplicationsRepository } from "./applications/repository.ts";
@@ -42,17 +40,10 @@ import { ENV_FILE } from "./paths.ts";
 import { closeBrowser, markdownToPdf } from "./pdf.ts";
 import { createProcessRepository } from "./process/repository.ts";
 import { processRoutes } from "./process/routes.ts";
+import { profileRoutes } from "./profile/routes.ts";
 import { EMBED_MODEL, embed } from "./rag/embed.ts";
 import { buildIndex, getIndexStatus, retrieveForVacancy } from "./rag/index.ts";
-import {
-  DATA_DIR,
-  ensureDataDirs,
-  listFiles,
-  mtime,
-  PROFILE_DIR,
-  removeFile,
-  safeName,
-} from "./storage.ts";
+import { DATA_DIR, ensureDataDirs, PROFILE_DIR } from "./storage.ts";
 import { createImageStore } from "./vacancies/image-store.ts";
 import { createVacanciesRepository } from "./vacancies/repository.ts";
 import { vacancyRoutes } from "./vacancies/routes.ts";
@@ -79,31 +70,7 @@ app.route(
 
 // ───────────── Perfil (base de conocimiento del RAG) ─────────────
 
-app.get("/profile", async (c) => {
-  const files = await listFiles(PROFILE_DIR, ".md");
-  const out: ProfileFile[] = [];
-  for (const name of files) {
-    const file = path.join(PROFILE_DIR, name);
-    out.push({
-      name,
-      content: await readFile(file, "utf8"),
-      updatedAt: new Date(await mtime(file)).toISOString(),
-    });
-  }
-  return c.json(out);
-});
-
-app.put("/profile/:name", async (c) => {
-  const name = safeName(c.req.param("name"), ".md");
-  const { content } = await c.req.json<{ content: string }>();
-  await writeFile(path.join(PROFILE_DIR, name), content, "utf8");
-  return c.json({ name });
-});
-
-app.delete("/profile/:name", async (c) => {
-  await removeFile(path.join(PROFILE_DIR, safeName(c.req.param("name"), ".md")));
-  return c.json({ ok: true });
-});
+app.route("/", profileRoutes({ dir: PROFILE_DIR }));
 
 app.get("/index/status", async (c) => c.json(await getIndexStatus()));
 app.post("/index/rebuild", async (c) => c.json(await buildIndex()));
