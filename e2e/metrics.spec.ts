@@ -1,4 +1,4 @@
-import type { TrackingMetrics, Vacancy } from "@apply/shared";
+import type { Application, TrackingMetrics, Vacancy } from "@apply/shared";
 import { expect, type Page, test } from "@playwright/test";
 
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}/api`;
@@ -51,12 +51,16 @@ test("AC-006 (#23): la pestaña de métricas muestra los valores y se actualiza 
     .click();
   await expectMetrics(page, before);
 
-  await page.goto(`/vacancies/${vacancy.id}?tab=application`);
-  const eventForm = page.locator('[data-id="event-form"]');
-  await eventForm.getByLabel("Tipo").selectOption("interview");
-  await eventForm.getByLabel("Canal").selectOption("whatsapp");
-  await eventForm.getByRole("button", { name: "Registrar evento" }).click();
-  await expect(page.getByText("Evento registrado")).toBeVisible();
+  // El formulario de eventos se retiró (#82); las métricas siguen saliendo de los eventos de la
+  // postulación, así que el evento manual se registra por la API.
+  const [application] = (await (
+    await request.get(`${API}/applications?vacancyId=${vacancy.id}`)
+  ).json()) as Application[];
+  const event = await request.post(`${API}/applications/${application?.id}/events`, {
+    data: { type: "interview", channel: "whatsapp", source: "manual" },
+  });
+  expect(event.status()).toBe(201);
+  await page.goto("/");
 
   await page
     .getByRole("navigation", { name: "Secciones" })

@@ -6,6 +6,7 @@ import { emailDraftsApi } from "./api/email-drafts.ts";
 import { gmailApi } from "./api/gmail.ts";
 import { json, request } from "./api/http.ts";
 import { metricsApi } from "./api/metrics.ts";
+import { processApi } from "./api/process.ts";
 import { vacanciesApi } from "./api/vacancies.ts";
 
 export type { GenerateHandlers } from "./api/cvs.ts";
@@ -38,6 +39,7 @@ export const api = {
   cvs: cvsApi,
   applications: applicationsApi,
   contacts: contactsApi,
+  process: processApi,
   emailDrafts: emailDraftsApi,
   metrics: metricsApi,
   gmail: gmailApi,
