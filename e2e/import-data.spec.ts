@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { expect, test } from "@playwright/test";
 import { E2E_DB_URL_FILE } from "./support/db-url.ts";
+import { openDetailTab } from "./support/vacancy-ui.ts";
 
 const run = promisify(execFile);
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
@@ -60,12 +61,8 @@ test("AC-006: tras importar data/ la web lista la vacante y el CV importados", a
     expect(stdout).toContain("CVs: 1 importados, 0 omitidos");
 
     await page.goto("/");
-    await expect(page.getByText("SRE Importada E2E")).toBeVisible();
-    await page
-      .getByRole("navigation", { name: "Secciones" })
-      .getByRole("link", { name: /CVs/ })
-      .click();
-    await page.getByRole("button", { name: /CV Importado E2E/ }).click();
+    await page.getByRole("link", { name: /SRE Importada E2E/ }).click();
+    await openDetailTab(page, "CV");
     await expect(page.getByLabel("Título del CV")).toHaveValue("CV Importado E2E");
   } finally {
     await rm(dataDir, { recursive: true, force: true });

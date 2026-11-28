@@ -13,7 +13,13 @@ const optionTexts = (label: string) =>
 describe("EventForm (REQ-003)", () => {
   it("ofrece tipos, canales de la tabla y los contactos de la postulación", () => {
     render(<EventForm channels={CHANNELS} contacts={contacts} onSubmit={vi.fn()} />);
-    expect(optionTexts("Tipo")).toContain("Entrevista");
+    expect(optionTexts("Tipo")).toEqual(
+      expect.arrayContaining(["Entrevista", "Prueba técnica", "Nota", "Seguimiento"]),
+    );
+    const groups = Array.from(document.querySelectorAll("#event-type optgroup")).map((g) =>
+      g.getAttribute("label"),
+    );
+    expect(groups).toEqual(["Cambia el estado", "Solo registra"]);
     expect(optionTexts("Canal")).toEqual(["Sin canal", "ATS", "Correo", "LinkedIn"]);
     expect(optionTexts("Contacto")).toEqual(["Sin contacto", "Laura Gómez"]);
     expect(screen.getByLabelText("Fecha").getAttribute("max")).toMatch(

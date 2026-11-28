@@ -1,4 +1,4 @@
-import { APPLICATION_STATUSES } from "@apply/shared";
+import { APPLICATION_STATUSES, INFO_EVENT_TYPES } from "@apply/shared";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { type ApplicationsRepository, InvalidEventError } from "./repository.ts";
@@ -33,7 +33,7 @@ const createSchema = z.object({
 });
 
 const eventSchema = z.object({
-  type: z.enum([...APPLICATION_STATUSES, "reopened"]),
+  type: z.enum([...APPLICATION_STATUSES, "reopened", ...INFO_EVENT_TYPES]),
   occurredAt: pastDate.optional(),
   channel: optionalText,
   source,

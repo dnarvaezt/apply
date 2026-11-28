@@ -8,7 +8,7 @@ import { isHttpUrl } from "./http-url.ts";
 import { MAX_BODY_BYTES, parseVacancyImage } from "./image.ts";
 import type { ImageStore } from "./image-store.ts";
 import { canonicalVacancyUrl } from "./linkedin-url.ts";
-import { parseManualFields } from "./manual-fields.ts";
+import { parseManualFields, parseVacancyChanges } from "./manual-fields.ts";
 import { detectPlatform } from "./platform.ts";
 import { resolvePostedAt } from "./posted-at.ts";
 import type { VacanciesRepository } from "./repository.ts";
@@ -138,11 +138,11 @@ export function vacancyRoutes({
         return vacancy ? c.json(vacancy) : c.json(NOT_FOUND, 404);
       })
 
-      /** Corrige a mano poster y fecha (REQ-005). */
+      /** Corrige a mano la vacante: poster y fecha (REQ-005), título, empresa y resumen (#73). */
       .patch("/vacancies/:id", async (c) => {
-        const manual = parseManualFields(await readBody(c));
-        if (!manual.ok) return c.json({ error: manual.error }, 400);
-        const vacancy = await repo.update(c.req.param("id"), manual.value);
+        const changes = parseVacancyChanges(await readBody(c));
+        if (!changes.ok) return c.json({ error: changes.error }, 400);
+        const vacancy = await repo.update(c.req.param("id"), changes.value);
         return vacancy ? c.json(vacancy) : c.json(NOT_FOUND, 404);
       })
 

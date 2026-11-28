@@ -12,19 +12,23 @@ async function createVacancy(request: APIRequestContext): Promise<Vacancy> {
   return (await res.json()) as Vacancy;
 }
 
-async function openPipeline(page: Page) {
-  await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /Postulaciones/ })
-    .click();
+/** La postulación vive en el tab "Línea de tiempo" del detalle de su vacante (#73). */
+async function openVacancy(page: Page, vacancy: Vacancy) {
+  await page.goto(`/vacancies/${vacancy.id}?tab=application`);
+  await expect(page.getByRole("heading", { name: vacancy.title })).toBeVisible();
 }
 
-// Corre antes que applications.spec.ts (orden alfabético, un worker): la base aún no tiene
-// postulaciones y los specs del proyecto `ui` dejaron todo limpio.
-test("AC-005 (#18): sin postulaciones muestra el estado vacío", async ({ page }) => {
-  await openPipeline(page);
-  await expect(page.getByText("Aún no hay postulaciones")).toBeVisible();
+const status = (page: Page) => page.locator('[data-id="status-stepper"]');
+
+test("AC-005 (#18): una vacante sin postulación lo dice y ofrece registrarla", async ({
+  page,
+  request,
+}) => {
+  const vacancy = await createVacancy(request);
+  await openVacancy(page, vacancy);
+  const panel = page.locator('[data-id="application-panel"]');
+  await expect(panel.getByText("Aún no te postulaste a esta vacante.")).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Registrar postulación" })).toBeVisible();
 });
 
 test("AC-003 (#18): crear una postulación desde la vista la deja en applied con su evento", async ({
@@ -43,17 +47,12 @@ test("AC-003 (#18): crear una postulación desde la vista la deja en applied con
   const cv = cvs.find((c) => c.vacancyId === vacancy.id);
   expect(cv).toBeDefined();
 
-  await openPipeline(page);
-  await page.getByLabel("Vacante", { exact: true }).selectOption(vacancy.id);
-  await page.getByLabel("CV", { exact: true }).selectOption(cv?.id ?? "");
+  await openVacancy(page, vacancy);
+  // El CV más reciente de la vacante viene elegido.
+  await expect(page.getByLabel("CV", { exact: true })).toHaveValue(cv?.id ?? "");
   await page.getByRole("button", { name: "Registrar postulación" }).click();
   await expect(page.getByText("Postulación registrada")).toBeVisible();
-
-  const items = page.locator('[data-id="applications-list"] li');
-  await expect(items).toHaveCount(1);
-  await expect(items.first()).toContainText(vacancy.title);
-  await expect(items.first()).toContainText("Postulada");
-  await expect(items.first()).toContainText("Activa");
+  await expect(status(page)).toContainText("Postulada");
 
   const timeline = page.locator('[data-id="application-timeline"] li');
   await expect(timeline).toHaveCount(1);
@@ -67,7 +66,10 @@ test("AC-003 (#18): crear una postulación desde la vista la deja en applied con
   expect(created).toMatchObject({ status: "applied", active: true, cvId: cv?.id });
 });
 
-test("AC-004 (#18): filtrar por cerradas deja solo las terminales", async ({ page, request }) => {
+test("AC-004 (#73): la lista de vacantes muestra el estado de cada postulación", async ({
+  page,
+  request,
+}) => {
   const create = async () => {
     const vacancy = await createVacancy(request);
     const res = await request.post(`${API}/applications`, { data: { vacancyId: vacancy.id } });
@@ -85,15 +87,15 @@ test("AC-004 (#18): filtrar por cerradas deja solo las terminales", async ({ pag
   const interview = await create();
   await addEvent(interview.id, "interview");
 
-  await openPipeline(page);
-  const items = page.locator('[data-id="applications-list"] li');
-  await expect(items.filter({ hasText: "Entrevista" })).not.toHaveCount(0);
+  await page.goto("/vacancies");
+  const cards = page.locator('[data-id="vacancy-list"] li');
+  await expect(cards.filter({ hasText: "Rechazada" })).not.toHaveCount(0);
+  await expect(cards.filter({ hasText: "Entrevista" })).not.toHaveCount(0);
 
-  await page.getByLabel("Activa o cerrada").selectOption("closed");
-  await expect(items.filter({ hasText: "Rechazada" })).not.toHaveCount(0);
-  await expect(items.filter({ hasText: "Activa" })).toHaveCount(0);
-  await expect(items.filter({ hasText: "Entrevista" })).toHaveCount(0);
-  for (const item of await items.all()) await expect(item).toContainText("Cerrada");
+  await cards.filter({ hasText: "Rechazada" }).first().getByRole("link").click();
+  await page.getByRole("tab", { name: "Línea de tiempo", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]tab=application/);
+  await expect(status(page)).toContainText("Rechazada");
 });
 
 test("AC-005 (#20): registrar a mano postulación, contacto y entrevista desde la vista", async ({
@@ -101,10 +103,9 @@ test("AC-005 (#20): registrar a mano postulación, contacto y entrevista desde l
   request,
 }) => {
   const vacancy = await createVacancy(request);
-  await openPipeline(page);
+  await openVacancy(page, vacancy);
 
   const created = page.locator('[data-id="new-application-form"]');
-  await created.getByLabel("Vacante", { exact: true }).selectOption(vacancy.id);
   await created.getByLabel("Canal", { exact: true }).selectOption("ats");
   await created.getByLabel("Fecha", { exact: true }).fill("2026-11-02T09:00");
   await created.getByRole("button", { name: "Registrar postulación" }).click();
@@ -138,10 +139,42 @@ test("AC-005 (#20): registrar a mano postulación, contacto y entrevista desde l
   await expect(timeline.nth(1)).toContainText("Entrevista");
   await expect(timeline.nth(1)).toContainText("LinkedIn");
   await expect(timeline.nth(1)).toContainText("con Laura Gómez");
-  await expect(page.locator('[data-id="application-detail__status"]')).toContainText("Entrevista");
+  await expect(status(page)).toContainText("Entrevista");
 
   const [stored] = (await (
     await request.get(`${API}/applications?vacancyId=${vacancy.id}`)
   ).json()) as Application[];
   expect(stored?.status).toBe("interview");
+});
+
+test("#73: la línea de tiempo registra prueba técnica (cambia el estado) y notas (no lo cambian)", async ({
+  page,
+  request,
+}) => {
+  const vacancy = await createVacancy(request);
+  const res = await request.post(`${API}/applications`, { data: { vacancyId: vacancy.id } });
+  expect(res.status()).toBe(201);
+  await openVacancy(page, vacancy);
+
+  const eventForm = page.locator('[data-id="event-form"]');
+  const timeline = page.locator('[data-id="application-timeline"] li');
+  await expect(timeline).toHaveCount(1);
+
+  await eventForm.getByLabel("Tipo").selectOption("assessment");
+  await eventForm.getByRole("button", { name: "Registrar evento" }).click();
+  await expect(timeline).toHaveCount(2);
+  await expect(timeline.nth(1)).toContainText("Prueba técnica");
+  await expect(status(page).getByText("Prueba técnica").first()).toBeVisible();
+
+  await eventForm.getByLabel("Tipo").selectOption("note");
+  await eventForm.getByLabel("Notas").fill("Enviaron el reto por correo");
+  await eventForm.getByRole("button", { name: "Registrar evento" }).click();
+  await expect(timeline).toHaveCount(3);
+  await expect(timeline.nth(2)).toContainText("Nota");
+  await expect(timeline.nth(2)).toContainText("Enviaron el reto por correo");
+
+  const [stored] = (await (
+    await request.get(`${API}/applications?vacancyId=${vacancy.id}`)
+  ).json()) as Application[];
+  expect(stored?.status).toBe("assessment");
 });

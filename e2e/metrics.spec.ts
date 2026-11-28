@@ -51,11 +51,7 @@ test("AC-006 (#23): la pestaña de métricas muestra los valores y se actualiza 
     .click();
   await expectMetrics(page, before);
 
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /Postulaciones/ })
-    .click();
-  await page.locator('[data-id="applications-list"] li').first().click();
+  await page.goto(`/vacancies/${vacancy.id}?tab=application`);
   const eventForm = page.locator('[data-id="event-form"]');
   await eventForm.getByLabel("Tipo").selectOption("interview");
   await eventForm.getByLabel("Canal").selectOption("whatsapp");

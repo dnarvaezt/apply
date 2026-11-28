@@ -3,6 +3,8 @@ import {
   type ApplicationEventType,
   type ApplicationStatus,
   type EventSource,
+  INFO_EVENT_TYPES,
+  type InfoEventType,
 } from "@apply/shared";
 import { CLASSIFIED } from "./classified.ts";
 
@@ -16,8 +18,14 @@ const ACTIVE_RANK: Partial<Record<ApplicationStatus, number>> = {
   applied: 0,
   contacted: 1,
   interview: 2,
-  offer: 3,
+  assessment: 3,
+  offer: 4,
 };
+
+/** `true` si el evento solo registra lo que pasó (nota, seguimiento) y no mueve el estado. */
+export function isInformational(type: ApplicationEventType): type is InfoEventType {
+  return (INFO_EVENT_TYPES as readonly string[]).includes(type);
+}
 
 export function isTerminal(status: ApplicationStatus): boolean {
   return ACTIVE_RANK[status] === undefined;
@@ -51,13 +59,16 @@ const REOPENED_STATUS: ApplicationStatus = "applied";
  * - Un terminal es pegajoso: solo `reopened` manual lo reabre.
  * - Un evento activo de rango menor o igual no retrocede el estado.
  * - Un evento terminal cierra la postulación.
+ * - Un evento informativo no cambia el estado.
  */
 export function next(current: ApplicationStatus, incoming: IncomingEvent): ApplicationStatus {
+  const { type, source } = incoming;
+  if (isInformational(type)) return current;
   if (isTerminal(current)) {
-    return incoming.type === "reopened" && incoming.source === "manual" ? REOPENED_STATUS : current;
+    return type === "reopened" && source === "manual" ? REOPENED_STATUS : current;
   }
-  if (incoming.type === "reopened") return current;
-  const incomingRank = ACTIVE_RANK[incoming.type];
-  if (incomingRank === undefined) return incoming.type;
-  return incomingRank > (ACTIVE_RANK[current] as number) ? incoming.type : current;
+  if (type === "reopened") return current;
+  const incomingRank = ACTIVE_RANK[type];
+  if (incomingRank === undefined) return type;
+  return incomingRank > (ACTIVE_RANK[current] as number) ? type : current;
 }

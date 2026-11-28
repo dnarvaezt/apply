@@ -356,6 +356,19 @@ describe("poster, fecha y plataforma de la vacante (#15)", () => {
     expect(await (await call("GET", `/vacancies/${created.id}`)).json()).toEqual(updated);
   });
 
+  it("PATCH corrige título y empresa; rechaza un título vacío (#73)", async () => {
+    const { body: created } = await createVacancy();
+    const res = await call("PATCH", `/vacancies/${created.id}`, {
+      title: " Frontend Senior ",
+      company: "Nequi",
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ title: "Frontend Senior", company: "Nequi" });
+    const bad = await call("PATCH", `/vacancies/${created.id}`, { title: "" });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toEqual({ error: "El título no puede estar vacío" });
+  });
+
   it("PATCH de una vacante inexistente responde 404", async () => {
     const res = await call("PATCH", "/vacancies/999", { posterName: "x" });
     expect(res.status).toBe(404);

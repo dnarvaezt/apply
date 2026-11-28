@@ -4,7 +4,7 @@ import { companies, cvs, matchReports, platforms, vacancies } from "#db";
 import { upsertCompany } from "../companies/repository.ts";
 import type { Db, Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
-import type { ManualFields } from "./manual-fields.ts";
+import type { VacancyChanges } from "./manual-fields.ts";
 import { resolvePostedAt } from "./posted-at.ts";
 import { vacancySource } from "./source.ts";
 
@@ -157,12 +157,13 @@ export function createVacanciesRepository(db: Db) {
       });
     },
 
-    /** Aplica las correcciones manuales (REQ-005); `null` si la vacante no existe. */
-    async update(id: string, fields: ManualFields): Promise<Vacancy | null> {
+    /** Aplica las correcciones manuales (REQ-005, #73); `null` si la vacante no existe. */
+    async update(id: string, fields: VacancyChanges): Promise<Vacancy | null> {
       const numeric = parseId(id);
       if (numeric === null) return null;
-      const { postedAt, ...poster } = fields;
-      const changes: Partial<typeof vacancies.$inferInsert> = { ...poster };
+      const { postedAt, company, ...rest } = fields;
+      const changes: Partial<typeof vacancies.$inferInsert> = { ...rest };
+      if (company !== undefined) changes.companyId = await upsertCompany(db, company);
       if (postedAt !== undefined) {
         const resolved = resolvePostedAt({ manual: postedAt }, new Date());
         changes.postedAt = resolved.postedAt;

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Briefcase, FileText, Mail, Send, UserRound } from "lucide-react";
+import { BarChart3, Briefcase, Mail, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -12,8 +12,6 @@ import { cn } from "@/lib/utils";
 const SECTIONS = [
   { href: "/profile", label: "Mi perfil", icon: UserRound },
   { href: "/vacancies", label: "Vacantes", icon: Briefcase },
-  { href: "/cvs", label: "CVs", icon: FileText },
-  { href: "/applications", label: "Postulaciones", icon: Send },
   { href: "/metrics", label: "Métricas", icon: BarChart3 },
   { href: "/gmail", label: "Gmail", icon: Mail },
 ] as const;

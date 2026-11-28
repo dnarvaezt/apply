@@ -30,6 +30,7 @@ export const applicationStatus = pgEnum("application_status", [
   "applied",
   "contacted",
   "interview",
+  "assessment",
   "offer",
   "offer_accepted",
   "offer_declined",
@@ -38,10 +39,12 @@ export const applicationStatus = pgEnum("application_status", [
   "closed",
 ]);
 
-/** Tipo de evento: los estados más `reopened`. */
+/** Tipo de evento: los estados, `reopened` y los informativos (`note`, `follow_up`). */
 export const applicationEventType = pgEnum("application_event_type", [
   ...applicationStatus.enumValues,
   "reopened",
+  "note",
+  "follow_up",
 ]);
 
 export const eventSource = pgEnum("event_source", ["auto", "manual"]);

@@ -11,9 +11,9 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Apply" })).toBeVisible();
-  await expect(
-    page.getByPlaceholder("Pega aquí la descripción completa de la vacante…"),
-  ).toBeVisible();
+  // La raíz lleva a la lista de vacantes; crear una vive en /vacancies/new.
+  await expect(page).toHaveURL(/\/vacancies$/);
+  await expect(page.getByRole("link", { name: "Nueva vacante" }).first()).toBeVisible();
 
   await page
     .getByRole("navigation", { name: "Secciones" })

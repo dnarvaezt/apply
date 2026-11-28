@@ -96,6 +96,7 @@ describe("isTerminal / isActive", () => {
       "applied",
       "contacted",
       "interview",
+      "assessment",
       "offer",
     ]);
   });
@@ -111,20 +112,74 @@ describe("canRecord (REQ-005)", () => {
 });
 
 describe("isClassifying (REQ-006)", () => {
-  it("solo interview y offer fijan classified_at", () => {
-    expect(APPLICATION_STATUSES.filter((t) => isClassifying(t))).toEqual(["interview", "offer"]);
+  it("solo interview, assessment y offer fijan classified_at", () => {
+    expect(APPLICATION_STATUSES.filter((t) => isClassifying(t))).toEqual([
+      "interview",
+      "assessment",
+      "offer",
+    ]);
     expect(isClassifying("reopened")).toBe(false);
   });
 });
 
 describe("activeStatusesFrom", () => {
   it("devuelve los activos de ese rango en adelante, en orden de avance", () => {
-    expect(activeStatusesFrom("applied")).toEqual(["applied", "contacted", "interview", "offer"]);
-    expect(activeStatusesFrom("contacted")).toEqual(["contacted", "interview", "offer"]);
+    expect(activeStatusesFrom("applied")).toEqual([
+      "applied",
+      "contacted",
+      "interview",
+      "assessment",
+      "offer",
+    ]);
+    expect(activeStatusesFrom("contacted")).toEqual([
+      "contacted",
+      "interview",
+      "assessment",
+      "offer",
+    ]);
     expect(activeStatusesFrom("offer")).toEqual(["offer"]);
   });
 
   it("desde un terminal no hay estados activos", () => {
     expect(activeStatusesFrom("rejected")).toEqual([]);
+  });
+});
+
+describe("next: prueba técnica", () => {
+  it.each([
+    ["applied", "assessment"],
+    ["contacted", "assessment"],
+    ["interview", "assessment"],
+  ] as const)("%s + %s -> assessment", (current, type) => {
+    expect(next(current, auto(type))).toBe("assessment");
+  });
+
+  it("assessment + offer avanza a offer", () => {
+    expect(next("assessment", auto("offer"))).toBe("offer");
+  });
+
+  it.each(["applied", "contacted", "interview", "assessment"] as const)(
+    "assessment + %s no retrocede",
+    (type) => {
+      expect(next("assessment", auto(type))).toBe("assessment");
+    },
+  );
+
+  it("assessment es activo y clasifica", () => {
+    expect(isActive("assessment")).toBe(true);
+    expect(isClassifying("assessment")).toBe(true);
+  });
+});
+
+describe("next: eventos informativos (nota, seguimiento)", () => {
+  it.each(["note", "follow_up"] as const)("%s no cambia ningún estado", (type) => {
+    for (const current of APPLICATION_STATUSES) {
+      expect(next(current, manual(type))).toBe(current);
+    }
+  });
+
+  it.each(["note", "follow_up"] as const)("%s se registra y no clasifica", (type) => {
+    expect(canRecord(manual(type))).toBe(true);
+    expect(isClassifying(type)).toBe(false);
   });
 });

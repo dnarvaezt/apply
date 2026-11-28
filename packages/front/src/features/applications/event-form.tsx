@@ -10,10 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ChannelField, OccurredAtField } from "./event-fields";
-import { EVENT_LABEL, localInputToIso } from "./pipeline";
+import { EVENT_GROUPS, EVENT_LABEL, localInputToIso } from "./pipeline";
 import { SelectField } from "./select-field";
-
-const EVENT_TYPES = Object.keys(EVENT_LABEL) as ApplicationEventType[];
 
 /** Registra a mano un evento de la postulación con su canal, fecha y contacto (REQ-003). */
 export function EventForm({
@@ -61,10 +59,14 @@ export function EventForm({
           value={type}
           onChange={(v) => setType(v as ApplicationEventType)}
         >
-          {EVENT_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {EVENT_LABEL[t]}
-            </option>
+          {EVENT_GROUPS.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.types.map((t) => (
+                <option key={t} value={t}>
+                  {EVENT_LABEL[t]}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </SelectField>
         <ChannelField
