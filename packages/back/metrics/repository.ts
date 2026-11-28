@@ -6,7 +6,12 @@ import { activeStatusesFrom } from "../applications/status.ts";
 import type { Db } from "../db.ts";
 
 /** Eventos que cuentan como contacto de la empresa (REQ-002, REQ-005). */
-const CONTACT_EVENT_TYPES: ApplicationEventType[] = ["contacted", "interview", "offer"];
+const CONTACT_EVENT_TYPES: ApplicationEventType[] = [
+  "contacted",
+  "interview",
+  "assessment",
+  "offer",
+];
 
 export function createMetricsRepository(db: Db) {
   async function appliedCount(): Promise<number> {

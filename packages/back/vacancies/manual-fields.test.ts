@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseManualFields } from "./manual-fields.ts";
+import { parseManualFields, parseVacancyChanges } from "./manual-fields.ts";
 
 const ok = (input: unknown) => {
   const r = parseManualFields(input);
@@ -75,5 +75,64 @@ describe("parseManualFields (REQ-005, REQ-007)", () => {
     expect(parseManualFields({ posterName: "a".repeat(200) }).ok).toBe(true);
     expect(parseManualFields("texto").ok).toBe(false);
     expect(parseManualFields(null).ok).toBe(false);
+  });
+});
+
+describe("parseVacancyChanges (#73)", () => {
+  const changes = (input: unknown) => {
+    const r = parseVacancyChanges(input);
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  };
+
+  it("recorta título, empresa, ubicación, seniority y resumen", () => {
+    expect(
+      changes({
+        title: " Frontend Senior ",
+        company: " Nequi ",
+        location: " Remoto ",
+        seniority: " Senior ",
+        summary: " Construir la app. ",
+      }),
+    ).toEqual({
+      title: "Frontend Senior",
+      company: "Nequi",
+      location: "Remoto",
+      seniority: "Senior",
+      summary: "Construir la app.",
+    });
+  });
+
+  it("ubicación y seniority vacías limpian el campo; el resumen queda vacío", () => {
+    expect(changes({ location: " ", seniority: null, summary: "  " })).toEqual({
+      location: null,
+      seniority: null,
+      summary: "",
+    });
+  });
+
+  it.each([
+    ["title", "", "El título no puede estar vacío"],
+    ["company", "   ", "La empresa no puede estar vacía"],
+  ])("rechaza %s vacío", (field, value, error) => {
+    expect(parseVacancyChanges({ [field]: value })).toEqual({ ok: false, error });
+  });
+
+  it("rechaza un título de más de 200 caracteres y un resumen de más de 4000", () => {
+    expect(parseVacancyChanges({ title: "a".repeat(201) }).ok).toBe(false);
+    expect(parseVacancyChanges({ summary: "a".repeat(4001) }).ok).toBe(false);
+    expect(parseVacancyChanges({ summary: "a".repeat(4000) }).ok).toBe(true);
+  });
+
+  it("incluye los campos manuales y sus validaciones", () => {
+    expect(changes({ posterName: " Ana ", postedAt: "" })).toEqual({
+      posterName: "Ana",
+      postedAt: null,
+    });
+    expect(parseVacancyChanges({ posterProfileUrl: "javascript:alert(1)" }).ok).toBe(false);
+  });
+
+  it("parseManualFields no acepta título ni empresa: el alta no los sobrescribe", () => {
+    expect(ok({ title: "x", company: "y", posterName: "Ana" })).toEqual({ posterName: "Ana" });
   });
 });

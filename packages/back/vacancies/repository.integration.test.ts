@@ -147,6 +147,28 @@ describe("poster, fecha y plataforma (REQ-001..007)", () => {
     });
   });
 
+  it("update cambia título, ubicación, seniority, resumen y empresa normalizada (#73)", async () => {
+    const created = await repo.create(newVacancy({ company: "ACME S.A." }));
+    const updated = await repo.update(created.id, {
+      title: "Arquitecta Frontend",
+      company: "Nequi",
+      location: null,
+      seniority: "Lead",
+      summary: "Nuevo resumen",
+    });
+    expect(updated).toMatchObject({
+      title: "Arquitecta Frontend",
+      company: "Nequi",
+      location: null,
+      seniority: "Lead",
+      summary: "Nuevo resumen",
+      mustHave: created.mustHave,
+    });
+    expect(await repo.get(created.id)).toEqual(updated);
+    const other = await repo.create(newVacancy({ company: "nequi" }));
+    expect(other.company).toBe("Nequi");
+  });
+
   it("update sin campos devuelve la vacante intacta; id inexistente devuelve null", async () => {
     const created = await repo.create(newVacancy());
     expect(await repo.update(created.id, {})).toEqual(created);

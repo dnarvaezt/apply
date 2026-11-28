@@ -1,6 +1,7 @@
 import type { CvMeta, EmailDraft, Vacancy } from "@apply/shared";
 import { expect, test } from "@playwright/test";
 import { API, ensureGmailConnected } from "./support/gmail.ts";
+import { openDetailTab } from "./support/vacancy-ui.ts";
 
 const VACANCY_TEXT =
   "Buscamos ingeniera backend senior con TypeScript y PostgreSQL para diseñar servicios, revisar código y operar APIs en producción. Trabajo remoto.";
@@ -24,19 +25,15 @@ test("AC-008 (#21): vista previa, confirmación y envío con Gmail registran la 
   });
   expect(await generated.text()).toContain("event: done");
   const cvs = (await (await request.get(`${API}/cvs`)).json()) as CvMeta[];
-  const index = cvs.findIndex((c) => c.vacancyId === vacancy.id);
-  const cv = cvs[index];
+  const cv = cvs.find((c) => c.vacancyId === vacancy.id);
   expect(cv).toBeDefined();
   const draft = (await (
     await request.post(`${API}/cvs/${cv?.id}/email-draft`, { data: {} })
   ).json()) as EmailDraft;
 
-  await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /CVs/ })
-    .click();
-  await page.getByRole("button", { name: cv?.title }).nth(index).click();
+  // `/cvs/[id]` lleva al tab CV del detalle de su vacante con ese CV abierto (#73).
+  await page.goto(`/cvs/${cv?.id}`);
+  await expect(page).toHaveURL(new RegExp(`/vacancies/${vacancy.id}\\?tab=cv&cv=${cv?.id}$`));
   const panel = page.locator('[data-id="cv-email-draft"]');
   await expect(panel.getByLabel("Asunto")).toHaveValue(draft.subject);
 
@@ -66,10 +63,8 @@ test("AC-008 (#21): vista previa, confirmación y envío con Gmail registran la 
   expect(sent).toMatchObject({ status: "sent", to: "talento@example.com" });
   expect(sent.applicationId).not.toBeNull();
 
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /Postulaciones/ })
-    .click();
-  const item = page.locator('[data-id="applications-list"] li', { hasText: vacancy.title });
-  await expect(item.first()).toContainText("Postulada");
+  // El envío registró la postulación: el panel de la vacante la muestra al recargar.
+  await page.reload();
+  await openDetailTab(page, "Línea de tiempo");
+  await expect(page.locator('[data-id="status-stepper"]')).toContainText("Postulada");
 });

@@ -4,6 +4,7 @@ export const APPLICATION_STATUSES = [
   "applied",
   "contacted",
   "interview",
+  "assessment",
   "offer",
   "offer_accepted",
   "offer_declined",
@@ -13,8 +14,12 @@ export const APPLICATION_STATUSES = [
 ] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
-/** Tipo de evento: los estados más `reopened` (solo manual). */
-export type ApplicationEventType = ApplicationStatus | "reopened";
+/** Eventos que registran lo que pasó sin cambiar el estado de la postulación. */
+export const INFO_EVENT_TYPES = ["note", "follow_up"] as const;
+export type InfoEventType = (typeof INFO_EVENT_TYPES)[number];
+
+/** Tipo de evento: los estados, `reopened` (solo manual) y los informativos. */
+export type ApplicationEventType = ApplicationStatus | "reopened" | InfoEventType;
 export type EventSource = "auto" | "manual";
 
 export interface Application {

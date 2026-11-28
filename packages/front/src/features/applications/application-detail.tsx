@@ -5,11 +5,10 @@ import type {
   NewApplicationContactRequest,
   ApplicationTimeline as Timeline,
 } from "@apply/shared";
-import { Badge } from "@/components/ui/badge";
 import { ApplicationTimeline } from "./application-timeline";
 import { ContactsPanel } from "./contacts-panel";
 import { EventForm } from "./event-form";
-import { STATUS_LABEL } from "./pipeline";
+import { StatusStepper } from "./status-stepper";
 
 /** Detalle de la postulación elegida: estado, eventos, registro manual y contactos. */
 export function ApplicationDetail({
@@ -29,23 +28,28 @@ export function ApplicationDetail({
 }) {
   const { application, events, contacts } = timeline;
   return (
-    <div className="flex flex-col gap-6" data-id="application-detail">
-      <p className="flex flex-wrap items-center gap-2 text-sm" data-id="application-detail__status">
-        Estado: <Badge>{STATUS_LABEL[application.status]}</Badge>
-      </p>
-      <ApplicationTimeline events={events} channels={channels} contacts={contacts} />
-      <section className="flex flex-col gap-3" aria-labelledby="event-form-title">
-        <h3 id="event-form-title" className="font-medium">
-          Registrar evento
-        </h3>
-        <EventForm channels={channels} contacts={contacts} onSubmit={onAddEvent} />
-      </section>
-      <ContactsPanel
-        contacts={contacts}
-        onAdd={onAddContact}
-        onUpdate={onUpdateContact}
-        onMarkProcessStart={onMarkProcessStart}
-      />
+    <div
+      className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]"
+      data-id="application-detail"
+    >
+      <div className="flex min-w-0 flex-col gap-6">
+        <StatusStepper status={application.status} events={events} />
+        <ApplicationTimeline events={events} channels={channels} contacts={contacts} />
+      </div>
+      <div className="flex flex-col gap-6">
+        <section className="flex flex-col gap-3" aria-labelledby="event-form-title">
+          <h3 id="event-form-title" className="font-medium">
+            Registrar lo que pasó
+          </h3>
+          <EventForm channels={channels} contacts={contacts} onSubmit={onAddEvent} />
+        </section>
+        <ContactsPanel
+          contacts={contacts}
+          onAdd={onAddContact}
+          onUpdate={onUpdateContact}
+          onMarkProcessStart={onMarkProcessStart}
+        />
+      </div>
     </div>
   );
 }

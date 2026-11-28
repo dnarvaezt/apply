@@ -9,10 +9,10 @@ export interface ClassifiedDefinition {
 }
 
 /**
- * Única definición de "clasificada" (C8): llegó a entrevista u oferta, o tiene un contacto
+ * Única definición de "clasificada" (C8): llegó a entrevista, prueba técnica u oferta, o tiene un contacto
  * marcado como inicio de proceso. La usan `classified_at` y las métricas.
  */
 export const CLASSIFIED: ClassifiedDefinition = {
-  eventTypes: ["interview", "offer"],
+  eventTypes: ["interview", "assessment", "offer"],
   processStartContact: true,
 };

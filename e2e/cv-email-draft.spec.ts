@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createVacancyFromText, deleteOpenVacancy, openDetailTab } from "./support/vacancy-ui.ts";
 
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 
@@ -11,12 +12,8 @@ test("AC-006 (#19): desde un CV se genera el correo, se edita el asunto y persis
 }) => {
   page.on("dialog", (dialog) => void dialog.accept());
 
-  await page.goto("/");
-  await page
-    .getByPlaceholder("Pega aquí la descripción completa de la vacante…")
-    .fill(VACANCY_TEXT);
-  await page.getByRole("button", { name: "Agregar vacante" }).click();
-  await expect(page.getByText("Vacante analizada: Ingeniera Backend E2E")).toBeVisible();
+  await createVacancyFromText(page, VACANCY_TEXT);
+  await openDetailTab(page, "CV");
   await page.getByRole("button", { name: /Generar CV para esta vacante/ }).click();
   await expect(page.getByText("CV generado y guardado")).toBeVisible({ timeout: 180_000 });
 
@@ -38,10 +35,6 @@ test("AC-006 (#19): desde un CV se genera el correo, se edita el asunto y persis
   await expect(panel.getByText("Borrador guardado")).toBeVisible();
 
   await page.reload();
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /CVs/ })
-    .click();
   const reloaded = page.locator('[data-id="cv-email-draft"]');
   await expect(reloaded.getByLabel("Asunto")).toHaveValue("Postulación editada");
   await expect(reloaded.getByLabel("Para")).toHaveValue("talento@example.com");
@@ -49,12 +42,7 @@ test("AC-006 (#19): desde un CV se genera el correo, se edita el asunto y persis
 
   // Limpiar: los demás specs del proyecto ui esperan una base vacía. Borrar el CV borra su borrador.
   await page.getByRole("button", { name: "Eliminar CV" }).click();
-  await expect(page.getByText("Genera uno desde la pestaña Vacantes.")).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /Vacantes/ })
-    .click();
-  await page.getByRole("button", { name: "Eliminar vacante" }).click();
-  await expect(page.getByText("Aún no hay vacantes.")).toBeVisible();
+  await expect(page.getByText("Aún no hay un CV para esta vacante")).toBeVisible();
+  await deleteOpenVacancy(page);
   expect(await (await request.get(`${API}/api/cvs`)).json()).toEqual([]);
 });

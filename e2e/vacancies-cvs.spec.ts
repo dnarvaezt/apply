@@ -1,6 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { openDetailTab } from "./support/vacancy-ui.ts";
 
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 const DATA_DIR = path.resolve(import.meta.dirname, "../node_modules/.tmp/e2e-data");
@@ -23,15 +24,19 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   page.on("dialog", (dialog) => void dialog.accept());
 
   // Crear una vacante pegando texto
-  await page.goto("/");
+  await page.goto("/vacancies");
+  await page.getByRole("link", { name: "Nueva vacante" }).first().click();
   await page
     .getByPlaceholder("Pega aquí la descripción completa de la vacante…")
     .fill(VACANCY_TEXT);
-  await page.getByRole("button", { name: "Agregar vacante" }).click();
+  await page.getByRole("button", { name: "Analizar vacante" }).click();
   await expect(page.getByText("Vacante analizada: Ingeniera Backend E2E")).toBeVisible();
-  await expect(page.getByText("Vacantes (1)")).toBeVisible();
+  await expect(page).toHaveURL(/\/vacancies\/[^/]+$/);
+  await expect(page.getByRole("heading", { name: "Ingeniera Backend E2E" })).toBeVisible();
 
-  // Generar un CV
+  // Generar un CV en su tab
+  await openDetailTab(page, "CV");
+  await expect(page).toHaveURL(/[?&]tab=cv/);
   await page.getByRole("button", { name: /Generar CV para esta vacante/ }).click();
   // La primera vez el RAG descarga el modelo de embeddings (~120 MB).
   await expect(page.getByText("CV generado y guardado")).toBeVisible({ timeout: 180_000 });
@@ -57,13 +62,14 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   await page.getByRole("button", { name: "Guardar" }).click();
   await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
 
+  // La URL fija el tab y el CV abierto: recargar vuelve al mismo.
+  await expect(page).toHaveURL(/[?&]cv=/);
   await page.reload();
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /CVs/ })
-    .click();
-  await expect(page.getByText("CVs generados (1)")).toBeVisible();
-  await page.getByRole("button", { name: /CV editado e2e/ }).click();
+  await expect(page.getByRole("tab", { name: "CV", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByLabel("Título del CV")).toHaveValue("CV editado e2e");
   await page.getByRole("tab", { name: "Editar" }).click();
   await expect(page.locator("textarea.font-mono")).toHaveValue(new RegExp(marker));
   await page.getByRole("tab", { name: "Vista previa" }).click();
@@ -80,13 +86,10 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
 
   // Borrar el CV y la vacante
   await page.getByRole("button", { name: "Eliminar CV" }).click();
-  await expect(page.getByText("Genera uno desde la pestaña Vacantes.")).toBeVisible();
-  await page
-    .getByRole("navigation", { name: "Secciones" })
-    .getByRole("link", { name: /Vacantes/ })
-    .click();
-  await page.getByRole("button", { name: "Eliminar vacante" }).click();
-  await expect(page.getByText("Aún no hay vacantes.")).toBeVisible();
+  await expect(page.getByText("Aún no hay un CV para esta vacante")).toBeVisible();
+  await page.getByRole("button", { name: "Eliminar", exact: true }).click();
+  await expect(page).toHaveURL(/\/vacancies$/);
+  await expect(page.getByText("Aún no hay vacantes")).toBeVisible();
 
   // La API no conserva nada y `data/vacancies` y `data/cvs` nunca recibieron archivos (REQ-001)
   expect(await (await request.get(`${API}/api/vacancies`)).json()).toEqual([]);

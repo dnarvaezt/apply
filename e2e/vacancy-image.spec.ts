@@ -7,7 +7,7 @@ const PNG = Buffer.from(
 );
 
 async function pickImage(page: import("@playwright/test").Page) {
-  await page.goto("/");
+  await page.goto("/vacancies/new");
   await page.getByRole("tab", { name: "Desde imagen" }).click();
   await page.getByLabel("Captura de la vacante").setInputFiles({
     name: "vacante.png",
@@ -21,9 +21,9 @@ test("AC-007: sube un PNG en 'Desde imagen' y ve la vacante en la lista", async 
   request,
 }) => {
   await pickImage(page);
-  await page.getByRole("button", { name: "Agregar vacante" }).click();
+  await page.getByRole("button", { name: "Analizar vacante" }).click();
   await expect(page.getByText("Vacante analizada: Ingeniera Backend E2E")).toBeVisible();
-  await expect(page.getByText("Vacantes (1)")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ingeniera Backend E2E" })).toBeVisible();
 
   // Limpieza: otros specs esperan la base de vacantes vacía.
   const list = (await (await request.get("/api/vacancies")).json()) as { id: string }[];
@@ -50,6 +50,6 @@ test("AC-007: muestra el mensaje del API ante un 422", async ({ page }) => {
       : route.continue(),
   );
   await pickImage(page);
-  await page.getByRole("button", { name: "Agregar vacante" }).click();
+  await page.getByRole("button", { name: "Analizar vacante" }).click();
   await expect(page.getByText("No se pudo leer texto suficiente de la imagen")).toBeVisible();
 });

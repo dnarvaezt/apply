@@ -4,15 +4,14 @@ import type {
   ApplicationEventType,
   ApplicationStatus,
   Channel,
-  CvMeta,
   EventSource,
-  Vacancy,
 } from "@apply/shared";
 
 export const EVENT_LABEL: Record<ApplicationEventType, string> = {
   applied: "Postulada",
   contacted: "Contactada",
   interview: "Entrevista",
+  assessment: "Prueba técnica",
   offer: "Oferta",
   offer_accepted: "Oferta aceptada",
   offer_declined: "Oferta declinada",
@@ -20,60 +19,39 @@ export const EVENT_LABEL: Record<ApplicationEventType, string> = {
   withdrawn: "Retirada",
   closed: "Cerrada sin resultado",
   reopened: "Reabierta",
+  note: "Nota",
+  follow_up: "Seguimiento",
 };
+
+/** Tipos del formulario de eventos: los que cambian el estado y los que solo registran. */
+export const EVENT_GROUPS: { label: string; types: ApplicationEventType[] }[] = [
+  {
+    label: "Cambia el estado",
+    types: [
+      "contacted",
+      "interview",
+      "assessment",
+      "offer",
+      "offer_accepted",
+      "offer_declined",
+      "rejected",
+      "withdrawn",
+      "closed",
+      "reopened",
+    ],
+  },
+  { label: "Solo registra", types: ["note", "follow_up"] },
+];
 
 export const STATUS_LABEL: Record<ApplicationStatus, string> = EVENT_LABEL;
 
 export const SOURCE_LABEL: Record<EventSource, string> = { auto: "automático", manual: "manual" };
-
-export type StateFilter = "all" | "active" | "closed";
-
-export interface PipelineFilter {
-  status: ApplicationStatus | "all";
-  state: StateFilter;
-}
-
-const STATE_MATCH: Record<StateFilter, (a: Application) => boolean> = {
-  all: () => true,
-  active: (a) => a.active,
-  closed: (a) => !a.active,
-};
-
-export function matchesFilter(a: Application, filter: PipelineFilter): boolean {
-  return (filter.status === "all" || a.status === filter.status) && STATE_MATCH[filter.state](a);
-}
 
 /** Eventos por fecha en que ocurrieron; a igual fecha, en el orden en que se registraron. */
 export function chronological(events: ApplicationEvent[]): ApplicationEvent[] {
   return [...events].sort(
     (a, b) => a.occurredAt.localeCompare(b.occurredAt) || a.createdAt.localeCompare(b.createdAt),
   );
-}
-
-export interface PipelineRow {
-  application: Application;
-  vacancy: string;
-  company: string;
-}
-
-/** Une cada postulación con su vacante; si la vacante ya no existe, lo dice en la fila. */
-export function toPipelineRows(
-  applications: Application[],
-  vacancies: Pick<Vacancy, "id" | "title" | "company">[],
-): PipelineRow[] {
-  const byId = new Map(vacancies.map((v) => [v.id, v]));
-  return applications.map((application) => {
-    const v = byId.get(application.vacancyId);
-    return { application, vacancy: v?.title ?? "Vacante eliminada", company: v?.company ?? "—" };
-  });
-}
-
-/** CVs generados para la vacante elegida: los únicos que tiene sentido adjuntar. */
-export function cvsForVacancy<T extends Pick<CvMeta, "vacancyId">>(
-  cvs: T[],
-  vacancyId: string,
-): T[] {
-  return vacancyId ? cvs.filter((c) => c.vacancyId === vacancyId) : [];
 }
 
 /** Nombre del canal para mostrar; un slug sin fila se muestra tal cual. */
@@ -92,3 +70,33 @@ export function toLocalInput(date: Date): string {
 export function localInputToIso(value: string): string | undefined {
   return value ? new Date(value).toISOString() : undefined;
 }
+
+/** La postulación que representa a la vacante: la activa o, si todas cerraron, la última actualizada. */
+export function currentApplication(applications: Application[]): Application | null {
+  const sorted = [...applications].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return sorted.find((a) => a.active) ?? sorted[0] ?? null;
+}
+
+const MILESTONES = ["applied", "contacted", "interview", "assessment", "offer"] as const;
+
+/** Hitos del proceso; uno está alcanzado si la línea de tiempo tiene un evento de ese tipo. */
+export function statusSteps(events: Pick<ApplicationEvent, "type">[]) {
+  const seen = new Set(events.map((e) => e.type));
+  return MILESTONES.map((type) => ({ type, label: EVENT_LABEL[type], reached: seen.has(type) }));
+}
+
+export type StatusTone = "progress" | "positive" | "negative";
+
+/** Tono de la insignia de cada estado: en curso, buen o mal final. */
+export const STATUS_TONE: Record<ApplicationStatus, StatusTone> = {
+  applied: "progress",
+  contacted: "progress",
+  interview: "progress",
+  assessment: "progress",
+  offer: "positive",
+  offer_accepted: "positive",
+  offer_declined: "negative",
+  rejected: "negative",
+  withdrawn: "negative",
+  closed: "negative",
+};

@@ -34,3 +34,12 @@ export interface VacancyManualFields {
   posterProfileUrl?: string | null;
   postedAt?: string | null;
 }
+
+/** Edición de la vacante (`PATCH /vacancies/:id`, #73): campos manuales más los extraídos. */
+export interface VacancyChanges extends VacancyManualFields {
+  title?: string;
+  company?: string;
+  location?: string | null;
+  seniority?: string | null;
+  summary?: string;
+}
