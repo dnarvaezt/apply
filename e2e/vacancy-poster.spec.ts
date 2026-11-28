@@ -10,7 +10,6 @@ test("AC-007: ver poster y fecha extraídos, corregirlos y verlos tras recargar 
   page,
   request,
 }) => {
-  page.on("dialog", (dialog) => void dialog.accept());
   await createVacancyFromText(page, VACANCY_TEXT);
 
   // Extraídos por Claude (falso): poster y fecha relativa "hace 3 días", aproximada

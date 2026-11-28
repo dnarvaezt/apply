@@ -1,6 +1,11 @@
 import type { CvMeta } from "@apply/shared";
 import { expect, test } from "@playwright/test";
-import { createVacancyFromText, deleteOpenVacancy, openDetailTab } from "./support/vacancy-ui.ts";
+import {
+  confirmInDialog,
+  createVacancyFromText,
+  deleteOpenVacancy,
+  openDetailTab,
+} from "./support/vacancy-ui.ts";
 
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 
@@ -11,8 +16,6 @@ test("#76: la vacante tiene un único CV y regenerarlo con IA elimina el actual 
   page,
   request,
 }) => {
-  page.on("dialog", (dialog) => void dialog.accept());
-
   await createVacancyFromText(page, VACANCY_TEXT);
   await openDetailTab(page, "CV");
   await page.getByRole("button", { name: /Generar CV para esta vacante/ }).click();
@@ -34,6 +37,7 @@ test("#76: la vacante tiene un único CV y regenerarlo con IA elimina el actual 
 
   await page.getByRole("button", { name: /Regenerar con IA/ }).click();
   await page.getByRole("button", { name: "Regenerar CV" }).click();
+  await confirmInDialog(page, "Regenerar");
   await expect(page.getByText("CV regenerado y guardado")).toBeVisible({ timeout: 180_000 });
   await page.getByRole("tab", { name: "Editar" }).click();
   await expect(page.locator("textarea.font-mono")).not.toHaveValue(/Editado a mano/);
@@ -50,6 +54,7 @@ test("#76: la vacante tiene un único CV y regenerarlo con IA elimina el actual 
 
   // Limpiar: los demás specs del proyecto ui esperan una base vacía.
   await page.getByRole("button", { name: "Eliminar CV" }).click();
+  await confirmInDialog(page, "Eliminar");
   await expect(page.getByText("Aún no hay un CV para esta vacante")).toBeVisible();
   await deleteOpenVacancy(page);
   expect(await (await request.get(`${API}/api/cvs`)).json()).toEqual([]);

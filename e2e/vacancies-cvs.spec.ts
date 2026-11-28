@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { openDetailTab } from "./support/vacancy-ui.ts";
+import { confirmInDialog, openDetailTab } from "./support/vacancy-ui.ts";
 
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 const DATA_DIR = path.resolve(import.meta.dirname, "../node_modules/.tmp/e2e-data");
@@ -21,8 +21,6 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   page,
   request,
 }) => {
-  page.on("dialog", (dialog) => void dialog.accept());
-
   // Crear una vacante pegando texto
   await page.goto("/vacancies");
   await page.getByRole("link", { name: "Nueva vacante" }).first().click();
@@ -86,8 +84,10 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
 
   // Borrar el CV y la vacante
   await page.getByRole("button", { name: "Eliminar CV" }).click();
+  await confirmInDialog(page, "Eliminar");
   await expect(page.getByText("Aún no hay un CV para esta vacante")).toBeVisible();
   await page.getByRole("button", { name: "Eliminar", exact: true }).click();
+  await confirmInDialog(page, "Eliminar vacante");
   await expect(page).toHaveURL(/\/vacancies$/);
   await expect(page.getByText("Aún no hay vacantes")).toBeVisible();
 

@@ -2,6 +2,7 @@ import type { CvDoc, CvMeta } from "@apply/shared";
 import { Copy, FileDown, FileText, Loader2, Maximize, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CvPreview } from "@/components/cv-preview";
 import { LoadFailure, LoadingBlock } from "@/components/load-state";
 import { Badge } from "@/components/ui/badge";
@@ -83,7 +84,6 @@ function CvDocEditor({
   }
 
   async function remove() {
-    if (!confirm(`¿Eliminar "${cv.title}"?`)) return;
     try {
       await api.cvs.remove(cv.id);
       onDeleted();
@@ -141,9 +141,17 @@ function CvDocEditor({
           <Button size="sm" onClick={exportPdf} disabled={exporting}>
             {exporting ? <Loader2 className="animate-spin" /> : <FileDown />} PDF
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={remove} aria-label="Eliminar CV">
-            <Trash2 />
-          </Button>
+          <ConfirmDialog
+            trigger={
+              <Button variant="ghost" size="icon-sm" aria-label="Eliminar CV">
+                <Trash2 />
+              </Button>
+            }
+            title={`¿Eliminar "${cv.title}"?`}
+            description="Se borran el CV y su mensaje de correo. No se puede deshacer."
+            confirmLabel="Eliminar"
+            onConfirm={() => void remove()}
+          />
         </div>
       </div>
 

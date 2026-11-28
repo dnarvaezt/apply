@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { createVacancyFromText, deleteOpenVacancy, openDetailTab } from "./support/vacancy-ui.ts";
+import {
+  confirmInDialog,
+  createVacancyFromText,
+  deleteOpenVacancy,
+  openDetailTab,
+} from "./support/vacancy-ui.ts";
 
 const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 
@@ -12,7 +17,6 @@ test("#76: desde el CV se genera el mensaje de correo, se copia y persiste al re
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  page.on("dialog", (dialog) => void dialog.accept());
 
   await createVacancyFromText(page, VACANCY_TEXT);
   await openDetailTab(page, "CV");
@@ -40,6 +44,7 @@ test("#76: desde el CV se genera el mensaje de correo, se copia y persiste al re
 
   // Limpiar: los demás specs del proyecto ui esperan una base vacía. Borrar el CV borra su mensaje.
   await page.getByRole("button", { name: "Eliminar CV" }).click();
+  await confirmInDialog(page, "Eliminar");
   await expect(page.getByText("Aún no hay un CV para esta vacante")).toBeVisible();
   await deleteOpenVacancy(page);
   expect(await (await request.get(`${API}/api/cvs`)).json()).toEqual([]);

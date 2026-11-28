@@ -2,6 +2,7 @@ import type { CvDoc, MatchReport } from "@apply/shared";
 import { Loader2, Sparkles, Square } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CvPreview } from "@/components/cv-preview";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -32,14 +33,6 @@ export function CvGenerator({
   const abortRef = useRef<AbortController | null>(null);
 
   async function generate() {
-    if (
-      replacing &&
-      !confirm(
-        "Regenerar elimina el CV actual y su mensaje de correo, incluidos los cambios sin guardar, y crea uno nuevo.",
-      )
-    ) {
-      return;
-    }
     const controller = new AbortController();
     abortRef.current = controller;
     setGenerating(true);
@@ -83,9 +76,21 @@ export function CvGenerator({
           <Button variant="outline" onClick={() => abortRef.current?.abort()}>
             <Square /> Detener
           </Button>
+        ) : replacing ? (
+          <ConfirmDialog
+            trigger={
+              <Button>
+                <Sparkles /> Regenerar CV
+              </Button>
+            }
+            title="¿Regenerar el CV?"
+            description="Regenerar elimina el CV actual y su mensaje de correo, incluidos los cambios sin guardar, y crea uno nuevo."
+            confirmLabel="Regenerar"
+            onConfirm={() => void generate()}
+          />
         ) : (
           <Button onClick={generate}>
-            <Sparkles /> {replacing ? "Regenerar CV" : "Generar CV para esta vacante"}
+            <Sparkles /> Generar CV para esta vacante
           </Button>
         )}
         {status && (

@@ -66,25 +66,25 @@ describe("CvSection: un único CV por vacante (#76)", () => {
     expect(screen.queryByText("Correo de postulación")).toBeNull();
   });
 
-  it("regenerar con IA pide confirmación y, si se cancela, no genera", async () => {
+  it("regenerar con IA pide confirmación en un diálogo y, si se cancela, no genera", async () => {
     const fetchMock = serve();
-    const confirm = vi.fn(() => false);
-    vi.stubGlobal("confirm", confirm);
+    const nativeConfirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", nativeConfirm);
     render(section(CV));
 
     fireEvent.click(screen.getByRole("button", { name: /Regenerar con IA/ }));
     fireEvent.click(screen.getByRole("button", { name: "Regenerar CV" }));
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("elimina el CV actual"));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog.textContent).toContain("elimina el CV actual");
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(nativeConfirm).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/cvs/generate"))).toBe(false);
   });
 
   it("al regenerar oculta el CV actual mientras se genera el nuevo; Detener lo conserva", async () => {
     const base = serve();
-    vi.stubGlobal(
-      "confirm",
-      vi.fn(() => true),
-    );
     // El generador queda abierto hasta que se aborta, como un stream SSE en curso.
     vi.stubGlobal(
       "fetch",
@@ -106,6 +106,7 @@ describe("CvSection: un único CV por vacante (#76)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Regenerar con IA/ }));
     fireEvent.click(screen.getByRole("button", { name: "Regenerar CV" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Regenerar" }));
     await screen.findByRole("button", { name: /Detener/ });
     await waitFor(() => expect(container.querySelector('[data-id="cv-editor"]')).toBeNull());
     expect(container.querySelector('[data-id="cv-email-message"]')).toBeNull();
