@@ -1,6 +1,6 @@
 import type { CvDoc, CvMatchReport, CvMeta } from "@apply/shared";
-import { Copy, FileDown, FileText, Loader2, Save, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Copy, FileDown, FileText, Loader2, Maximize, Save, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CvPreview } from "@/components/cv-preview";
 import { LoadFailure, LoadingBlock } from "@/components/load-state";
@@ -53,6 +53,7 @@ function CvDocEditor({
   const [title, setTitle] = useState(doc.title);
   const [exporting, setExporting] = useState(false);
   const [match, setMatch] = useState<CvMatchReport | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const dirty = markdown !== cv.markdown || title !== cv.title;
 
@@ -89,6 +90,10 @@ function CvDocEditor({
     } finally {
       setExporting(false);
     }
+  }
+
+  function showFullscreen() {
+    previewRef.current?.requestFullscreen().catch((e: Error) => toast.error(e.message));
   }
 
   async function remove() {
@@ -170,8 +175,15 @@ function CvDocEditor({
             spellCheck
           />
         </TabsContent>
-        <TabsContent value="preview">
-          <div className="max-h-[75vh] min-h-[40vh] overflow-auto rounded-xl border bg-muted/40 p-6">
+        <TabsContent value="preview" className="flex flex-col gap-2">
+          <Button variant="outline" size="sm" className="self-end" onClick={showFullscreen}>
+            <Maximize /> Pantalla completa
+          </Button>
+          <div
+            ref={previewRef}
+            data-id="cv-preview-frame"
+            className="max-h-[75vh] min-h-[40vh] overflow-auto rounded-xl border bg-muted/40 p-6 [&:fullscreen]:max-h-none [&:fullscreen]:rounded-none [&:fullscreen]:border-0 [&:fullscreen]:bg-muted"
+          >
             <CvPreview markdown={markdown} />
           </div>
         </TabsContent>
