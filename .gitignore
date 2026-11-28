@@ -10,7 +10,7 @@ dist
 credentials*.json
 token*.json
 *.sql
-!packages/db/drizzle/*.sql
+!packages/back/db/drizzle/*.sql
 *.dump
 
 # Datos personales locales (no se versionan)
