@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import type { CvDoc } from "@apply/shared";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { SelectRoute } from "@/lib/route-selection";
 import { CvsPage } from "./cvs-page";
 
 afterEach(() => {
@@ -40,6 +42,20 @@ function serve() {
   return saved;
 }
 
+/** Sustituye a la URL: guarda el CV abierto como lo haría la ruta `/cvs/[id]`. */
+function CvsAt({ onSelect }: { onSelect?: SelectRoute }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  return (
+    <CvsPage
+      selectedId={selectedId}
+      onSelect={(id, options) => {
+        onSelect?.(id, options);
+        setSelectedId(id);
+      }}
+    />
+  );
+}
+
 const editTab = () => screen.findByRole("tab", { name: "Editar" });
 const previewTab = () => screen.findByRole("tab", { name: "Vista previa" });
 const editor = () => screen.getByRole("textbox", { name: "Markdown del CV" });
@@ -48,7 +64,7 @@ const type = (text: string) => fireEvent.change(editor(), { target: { value: tex
 describe("CvsPage: alternar editar / vista previa", () => {
   it("al abrir un CV muestra el Markdown renderizado y no el textarea (REQ-001, REQ-002)", async () => {
     serve();
-    render(<CvsPage initialId={null} />);
+    render(<CvsAt />);
 
     expect(await screen.findByRole("heading", { name: "Ana Pérez" })).toBeTruthy();
     expect((await previewTab()).getAttribute("aria-selected")).toBe("true");
@@ -61,7 +77,7 @@ describe("CvsPage: alternar editar / vista previa", () => {
 
   it("los cambios de Editar se ven en Vista previa sin guardar y no se pierden al volver (REQ-003)", async () => {
     serve();
-    render(<CvsPage initialId={null} />);
+    render(<CvsAt />);
     fireEvent.click(await editTab());
     type("# Ana Pérez\n\nTexto modificado");
 
@@ -75,7 +91,7 @@ describe("CvsPage: alternar editar / vista previa", () => {
 
   it("conserva sin guardar al alternar y Guardar envía el Markdown editado desde ambos modos (REQ-003, REQ-004)", async () => {
     const saved = serve();
-    render(<CvsPage initialId={null} />);
+    render(<CvsAt />);
     fireEvent.click(await editTab());
     type("# Ana Pérez\n\nPrimera edición");
     expect(screen.getByText("sin guardar")).toBeTruthy();
@@ -97,7 +113,7 @@ describe("CvsPage: alternar editar / vista previa", () => {
 
   it("el switch expone tablist y las flechas mueven el foco entre pestañas (REQ-005)", async () => {
     serve();
-    render(<CvsPage initialId={null} />);
+    render(<CvsAt />);
     const preview = await previewTab();
 
     expect(screen.getByRole("tablist")).toBeTruthy();
@@ -106,5 +122,26 @@ describe("CvsPage: alternar editar / vista previa", () => {
     const edit = await editTab();
     await waitFor(() => expect(document.activeElement).toBe(edit));
     // La activación con Enter/Espacio la resuelve el navegador: la cubre el e2e (AC-004).
+  });
+});
+
+describe("CvsPage: CV abierto según la URL", () => {
+  it("sin CV en la URL muestra el primero sin navegar", async () => {
+    // Navegar al cargar la lista pisaba la navegación que el usuario ya había empezado.
+    serve();
+    const onSelect = vi.fn<SelectRoute>();
+    render(<CvsAt onSelect={onSelect} />);
+
+    expect(await screen.findByDisplayValue("CV Backend")).toBeTruthy();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("con un CV en la URL lo abre sin navegar", async () => {
+    serve();
+    const onSelect = vi.fn<SelectRoute>();
+    render(<CvsPage selectedId="c1" onSelect={onSelect} />);
+
+    expect(await screen.findByDisplayValue("CV Backend")).toBeTruthy();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

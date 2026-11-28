@@ -38,7 +38,10 @@ test("AC-006 (#19): desde un CV se genera el correo, se edita el asunto y persis
   await expect(panel.getByText("Borrador guardado")).toBeVisible();
 
   await page.reload();
-  await page.getByRole("tab", { name: /CVs/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /CVs/ })
+    .click();
   const reloaded = page.locator('[data-id="cv-email-draft"]');
   await expect(reloaded.getByLabel("Asunto")).toHaveValue("Postulación editada");
   await expect(reloaded.getByLabel("Para")).toHaveValue("talento@example.com");
@@ -47,7 +50,10 @@ test("AC-006 (#19): desde un CV se genera el correo, se edita el asunto y persis
   // Limpiar: los demás specs del proyecto ui esperan una base vacía. Borrar el CV borra su borrador.
   await page.getByRole("button", { name: "Eliminar CV" }).click();
   await expect(page.getByText("Genera uno desde la pestaña Vacantes.")).toBeVisible();
-  await page.getByRole("tab", { name: /Vacantes/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Vacantes/ })
+    .click();
   await page.getByRole("button", { name: "Eliminar vacante" }).click();
   await expect(page.getByText("Aún no hay vacantes.")).toBeVisible();
   expect(await (await request.get(`${API}/api/cvs`)).json()).toEqual([]);

@@ -32,7 +32,10 @@ test("AC-008 (#21): vista previa, confirmación y envío con Gmail registran la 
   ).json()) as EmailDraft;
 
   await page.goto("/");
-  await page.getByRole("tab", { name: /CVs/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /CVs/ })
+    .click();
   await page.getByRole("button", { name: cv?.title }).nth(index).click();
   const panel = page.locator('[data-id="cv-email-draft"]');
   await expect(panel.getByLabel("Asunto")).toHaveValue(draft.subject);
@@ -63,7 +66,10 @@ test("AC-008 (#21): vista previa, confirmación y envío con Gmail registran la 
   expect(sent).toMatchObject({ status: "sent", to: "talento@example.com" });
   expect(sent.applicationId).not.toBeNull();
 
-  await page.getByRole("tab", { name: /Postulaciones/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Postulaciones/ })
+    .click();
   const item = page.locator('[data-id="applications-list"] li', { hasText: vacancy.title });
   await expect(item.first()).toContainText("Postulada");
 });

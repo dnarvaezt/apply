@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { SelectRoute } from "@/lib/route-selection";
 import { ApplicationDetail } from "./application-detail";
 import { ApplicationsList } from "./applications-list";
 import { NewApplicationForm } from "./new-application-form";
@@ -12,8 +13,15 @@ import { usePipeline } from "./use-pipeline";
 import { useReplySyncStatus } from "./use-reply-sync-status";
 
 /** Pipeline de postulaciones: alta, lista filtrable, línea de tiempo y registro manual. */
-export function ApplicationsPage() {
-  const { load, selectedId, timeline, reload, select, create, ...actions } = usePipeline();
+export function ApplicationsPage({
+  selectedId,
+  onSelect,
+}: {
+  /** Postulación abierta, la de la URL. */
+  selectedId: string | null;
+  onSelect: SelectRoute;
+}) {
+  const { load, timeline, reload, create, ...actions } = usePipeline(selectedId, onSelect);
   const syncStatus = useReplySyncStatus();
 
   if (load.state === "loading") {
@@ -72,7 +80,7 @@ export function ApplicationsPage() {
                 Registra la primera eligiendo una vacante arriba.
               </EmptyState>
             ) : (
-              <ApplicationsList rows={load.rows} selectedId={selectedId} onSelect={select} />
+              <ApplicationsList rows={load.rows} selectedId={selectedId} onSelect={onSelect} />
             )}
           </CardContent>
         </Card>

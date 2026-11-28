@@ -54,7 +54,10 @@ test("AC-006 (#16): el CV abierto muestra su cobertura frente a la vacante y se 
   // Limpiar: los demás specs del proyecto ui esperan una base vacía.
   await page.getByRole("button", { name: "Eliminar CV" }).click();
   await expect(page.getByText("Genera uno desde la pestaña Vacantes.")).toBeVisible();
-  await page.getByRole("tab", { name: /Vacantes/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Vacantes/ })
+    .click();
   await page.getByRole("button", { name: "Eliminar vacante" }).click();
   await expect(page.getByText("Aún no hay vacantes.")).toBeVisible();
   expect(await (await request.get(`${API}/api/cvs`)).json()).toEqual([]);

@@ -14,7 +14,10 @@ async function createVacancy(request: APIRequestContext): Promise<Vacancy> {
 
 async function openPipeline(page: Page) {
   await page.goto("/");
-  await page.getByRole("tab", { name: /Postulaciones/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Postulaciones/ })
+    .click();
 }
 
 // Corre antes que applications.spec.ts (orden alfabético, un worker): la base aún no tiene

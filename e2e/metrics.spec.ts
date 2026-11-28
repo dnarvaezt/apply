@@ -45,10 +45,16 @@ test("AC-006 (#23): la pestaña de métricas muestra los valores y se actualiza 
   expect(before.applications).toBeGreaterThan(0);
 
   await page.goto("/");
-  await page.getByRole("tab", { name: /Métricas/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Métricas/ })
+    .click();
   await expectMetrics(page, before);
 
-  await page.getByRole("tab", { name: /Postulaciones/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Postulaciones/ })
+    .click();
   await page.locator('[data-id="applications-list"] li').first().click();
   const eventForm = page.locator('[data-id="event-form"]');
   await eventForm.getByLabel("Tipo").selectOption("interview");
@@ -56,7 +62,10 @@ test("AC-006 (#23): la pestaña de métricas muestra los valores y se actualiza 
   await eventForm.getByRole("button", { name: "Registrar evento" }).click();
   await expect(page.getByText("Evento registrado")).toBeVisible();
 
-  await page.getByRole("tab", { name: /Métricas/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Métricas/ })
+    .click();
   await expectMetrics(page, {
     ...before,
     activeProcesses: before.activeProcesses + 1,

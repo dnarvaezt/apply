@@ -13,6 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, generateCv } from "@/lib/api";
+import type { SelectRoute } from "@/lib/route-selection";
 import { cn } from "@/lib/utils";
 import { readImageFile } from "./image-file";
 import { MatchList } from "./match-list";
@@ -26,9 +27,17 @@ import {
   toManualFields,
 } from "./poster-form";
 
-export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => void }) {
+type VacanciesPageProps = {
+  /** Vacante de la URL; sin ella se muestra la primera. */
+  selectedId: string | null;
+  onSelect: SelectRoute;
+  onCvCreated: (cv: CvDoc) => void;
+};
+
+export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: VacanciesPageProps) {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Sin vacante en la URL se muestra la primera, sin navegar.
+  const selectedId = routeId ?? vacancies[0]?.id ?? null;
   const [mode, setMode] = useState<"text" | "url" | "image">("text");
   const [text, setText] = useState("");
   const [url, setUrl] = useState("");
@@ -55,10 +64,7 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
   useEffect(() => {
     api.vacancies
       .list()
-      .then((list) => {
-        setVacancies(list);
-        setSelectedId(list[0]?.id ?? null);
-      })
+      .then(setVacancies)
       .catch((e: Error) => toast.error(e.message));
   }, []);
 
@@ -85,7 +91,7 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
             : { image: await readImageFile(imageFile as File) };
       const v = await api.vacancies.create({ ...source, ...toCreateFields(newPoster) });
       setVacancies((prev) => [v, ...prev]);
-      setSelectedId(v.id);
+      onSelect(v.id);
       setText("");
       setUrl("");
       setImageFile(null);
@@ -116,7 +122,7 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
     if (!confirm("¿Eliminar esta vacante?")) return;
     await api.vacancies.remove(id);
     setVacancies((prev) => prev.filter((v) => v.id !== id));
-    if (selectedId === id) setSelectedId(null);
+    if (routeId === id) onSelect(null);
   }
 
   async function generate() {
@@ -233,7 +239,7 @@ export function VacanciesPage({ onCvCreated }: { onCvCreated: (cv: CvDoc) => voi
               <button
                 type="button"
                 key={v.id}
-                onClick={() => setSelectedId(v.id)}
+                onClick={() => onSelect(v.id)}
                 className={cn(
                   "flex flex-col rounded-md px-2 py-1.5 text-left hover:bg-muted",
                   v.id === selectedId && "bg-muted",

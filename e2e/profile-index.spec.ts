@@ -4,7 +4,10 @@ test("Reindexar en Mi perfil guarda el índice en Postgres y muestra el estado a
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("tab", { name: /Mi perfil/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Mi perfil/ })
+    .click();
 
   const card = page.locator("[data-slot=card]", { hasText: "Índice RAG" });
   await card.getByRole("button", { name: "Reindexar" }).click();
@@ -13,7 +16,10 @@ test("Reindexar en Mi perfil guarda el índice en Postgres y muestra el estado a
   await expect(card.getByText(/\d+ fragmentos de \d+ archivos/)).toBeVisible();
 
   await page.reload();
-  await page.getByRole("tab", { name: /Mi perfil/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Mi perfil/ })
+    .click();
   await expect(card.getByText("Al día")).toBeVisible();
   await expect(card.getByText(/\d+ fragmentos de \d+ archivos/)).toBeVisible();
 });

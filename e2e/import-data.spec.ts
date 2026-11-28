@@ -61,7 +61,10 @@ test("AC-006: tras importar data/ la web lista la vacante y el CV importados", a
 
     await page.goto("/");
     await expect(page.getByText("SRE Importada E2E")).toBeVisible();
-    await page.getByRole("tab", { name: /CVs/ }).click();
+    await page
+      .getByRole("navigation", { name: "Secciones" })
+      .getByRole("link", { name: /CVs/ })
+      .click();
     await page.getByRole("button", { name: /CV Importado E2E/ }).click();
     await expect(page.getByLabel("Título del CV")).toHaveValue("CV Importado E2E");
   } finally {

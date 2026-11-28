@@ -47,7 +47,10 @@ test("AC-007 (#22): la respuesta detectada aparece como evento automático con e
   expect(result).toMatchObject({ state: "synced", recorded: 1 });
 
   await page.goto("/");
-  await page.getByRole("tab", { name: /Postulaciones/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Postulaciones/ })
+    .click();
   await page
     .locator('[data-id="applications-list"] li', { hasText: vacancy.title })
     .first()

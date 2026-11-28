@@ -15,7 +15,10 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
     page.getByPlaceholder("Pega aquí la descripción completa de la vacante…"),
   ).toBeVisible();
 
-  await page.getByRole("tab", { name: /Mi perfil/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Mi perfil/ })
+    .click();
   await page.getByRole("button", { name: "00-contacto.md" }).click();
 
   const editor = page.locator("textarea:not([placeholder])");
@@ -27,7 +30,10 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
   await expect(page.getByText("Guardado")).toBeVisible();
 
   await page.reload();
-  await page.getByRole("tab", { name: /Mi perfil/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Mi perfil/ })
+    .click();
   await page.getByRole("button", { name: "00-contacto.md" }).click();
   await expect(page.locator("textarea:not([placeholder])")).toHaveValue(new RegExp(marker));
 });

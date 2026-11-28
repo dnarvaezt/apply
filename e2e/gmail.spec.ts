@@ -4,7 +4,10 @@ import { expect, test } from "@playwright/test";
 // pestaña, el loopback guarda el token y la vista pasa a mostrar la cuenta.
 test("conecta Gmail y muestra la cuenta conectada", async ({ page, context }) => {
   await page.goto("/");
-  await page.getByRole("tab", { name: "Gmail" }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: "Gmail" })
+    .click();
 
   const state = page.locator('[data-id="gmail-connection-view__state"]');
   await expect(state).toHaveText("Desconectado");

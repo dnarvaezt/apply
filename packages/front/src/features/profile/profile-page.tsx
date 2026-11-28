@@ -8,11 +8,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
+import type { SelectRoute } from "@/lib/route-selection";
 import { cn } from "@/lib/utils";
 
-export function ProfilePage() {
+export function ProfilePage({
+  selectedId: routeId,
+  onSelect,
+}: {
+  /** Archivo de la URL; sin él se muestra el primero. */
+  selectedId: string | null;
+  onSelect: SelectRoute;
+}) {
   const [files, setFiles] = useState<ProfileFile[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
+  const selected = routeId ?? files[0]?.name ?? null;
   const [draft, setDraft] = useState("");
   const [newName, setNewName] = useState("");
   const [status, setStatus] = useState<IndexStatus | null>(null);
@@ -30,20 +38,22 @@ export function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    refresh()
-      .then((list) => {
-        if (list[0]) {
-          setSelected(list[0].name);
-          setDraft(list[0].content);
-        }
-      })
-      .catch((e: Error) => toast.error(e.message));
+    refresh().catch((e: Error) => toast.error(e.message));
   }, [refresh]);
+
+  // El borrador se carga una vez por archivo abierto: recargar la lista no pisa lo que se escribe.
+  const draftFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (selected === draftFor.current) return;
+    const file = files.find((f) => f.name === selected);
+    if (selected !== null && !file) return;
+    draftFor.current = selected;
+    setDraft(file?.content ?? "");
+  }, [selected, files]);
 
   function open(file: ProfileFile) {
     if (dirty && !confirm("Hay cambios sin guardar. ¿Descartarlos?")) return;
-    setSelected(file.name);
-    setDraft(file.content);
+    onSelect(file.name);
   }
 
   async function save() {
@@ -62,8 +72,9 @@ export function ProfilePage() {
     try {
       const { name: saved } = await api.profile.save(fileName, content);
       await refresh();
-      setSelected(saved);
-      setDraft(content);
+      // Reescribir el archivo abierto no cambia la URL: el borrador se actualiza aquí.
+      if (saved === selected) setDraft(content);
+      else onSelect(saved);
       setNewName("");
     } catch (e) {
       toast.error((e as Error).message);
@@ -73,9 +84,8 @@ export function ProfilePage() {
   async function remove() {
     if (!selected || !confirm(`¿Eliminar ${selected}?`)) return;
     await api.profile.remove(selected);
-    const list = await refresh();
-    setSelected(list[0]?.name ?? null);
-    setDraft(list[0]?.content ?? "");
+    await refresh();
+    onSelect(null);
   }
 
   async function upload(fileList: FileList | null) {

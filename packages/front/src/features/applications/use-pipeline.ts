@@ -11,6 +11,7 @@ import type {
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import type { SelectRoute } from "@/lib/route-selection";
 import { type PipelineRow, toPipelineRows } from "./pipeline";
 
 type Ready = {
@@ -54,9 +55,8 @@ async function attempt(run: () => Promise<unknown>, success?: string): Promise<b
  * Estado de la pantalla de postulaciones: carga, selección, línea de tiempo con sus contactos,
  * alta de postulaciones y registro manual de eventos y contactos.
  */
-export function usePipeline() {
+export function usePipeline(selectedId: string | null, onSelect: SelectRoute) {
   const [load, setLoad] = useState<Load>({ state: "loading" });
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<ApplicationTimeline | null>(null);
 
   const reload = useCallback(async () => {
@@ -72,15 +72,19 @@ export function usePipeline() {
     void reload();
   }, [reload]);
 
-  async function select(id: string) {
-    setSelectedId(id);
+  // La línea de tiempo sigue a la postulación de la URL; descarta respuestas de una anterior.
+  useEffect(() => {
     setTimeline(null);
-    try {
-      setTimeline(await api.applications.timeline(id));
-    } catch (e) {
-      toast.error(`Línea de tiempo: ${(e as Error).message}`);
-    }
-  }
+    if (selectedId === null) return;
+    let current = true;
+    api.applications
+      .timeline(selectedId)
+      .then((view) => current && setTimeline(view))
+      .catch((e: Error) => current && toast.error(`Línea de tiempo: ${e.message}`));
+    return () => {
+      current = false;
+    };
+  }, [selectedId]);
 
   /** Vuelve a leer la línea de tiempo y la lista (el estado pudo cambiar) sin vaciar la vista. */
   async function refresh(id: string) {
@@ -94,7 +98,7 @@ export function usePipeline() {
       const created = await api.applications.create(req);
       toast.success("Postulación registrada");
       await reload();
-      await select(created.id);
+      onSelect(created.id);
       return true;
     } catch (e) {
       toast.error((e as Error).message);
@@ -126,10 +130,8 @@ export function usePipeline() {
 
   return {
     load,
-    selectedId,
     timeline,
     reload,
-    select,
     create,
     addEvent,
     addContact,
