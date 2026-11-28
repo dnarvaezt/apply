@@ -71,6 +71,13 @@
       "when": 1795883793744,
       "tag": "0009_application_assessment_and_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795891380759,
+      "tag": "0010_single_cv_per_vacancy",
+      "breakpoints": true
     }
   ]
 }

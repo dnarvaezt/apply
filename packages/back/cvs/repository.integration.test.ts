@@ -102,6 +102,39 @@ describe("repositorio de CVs (AC-001)", () => {
   });
 });
 
+describe("un único CV por vacante (#76)", () => {
+  it("saveForVacancy crea el CV y al regenerar reemplaza el mismo, sin uno nuevo", async () => {
+    const vacancy = await vacancies.create(newVacancy());
+    const first = await cvs.saveForVacancy({
+      ...input(vacancy.id, "Primero"),
+      vacancyId: vacancy.id,
+    });
+    await new Promise((r) => setTimeout(r, 15));
+    const second = await cvs.saveForVacancy({
+      ...input(vacancy.id, "Segundo"),
+      vacancyId: vacancy.id,
+      markdown: "# Nuevo",
+    });
+
+    expect(second).toMatchObject({ id: first.id, title: "Segundo", markdown: "# Nuevo" });
+    expect(second.createdAt).toBe(first.createdAt);
+    expect(Date.parse(second.updatedAt)).toBeGreaterThan(Date.parse(first.updatedAt));
+    expect(await cvs.list()).toHaveLength(1);
+  });
+
+  it("la base rechaza un segundo CV para la misma vacante", async () => {
+    const vacancy = await vacancies.create(newVacancy());
+    await cvs.create(input(vacancy.id));
+    await expect(cvs.create(input(vacancy.id))).rejects.toThrow();
+  });
+
+  it("los CVs sin vacante no chocan entre sí", async () => {
+    await cvs.create(input(null));
+    await cvs.create(input(null));
+    expect(await cvs.list()).toHaveLength(2);
+  });
+});
+
 describe("borrar un CV no deja filas huérfanas (REQ-006)", () => {
   it("elimina sus informes de match", async () => {
     const vacancy = await vacancies.create(newVacancy());

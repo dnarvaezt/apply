@@ -41,16 +41,11 @@ export function VacancyDetailPage({
   id,
   tab,
   onSelectTab,
-  selectedCvId: routeCvId,
-  onSelectCv,
   onDeleted,
 }: {
   id: string;
   tab: DetailTab;
   onSelectTab: (tab: DetailTab) => void;
-  /** CV de la URL (`?cv=`); sin él se abre el más reciente. */
-  selectedCvId: string | null;
-  onSelectCv: (cvId: string | null) => void;
   onDeleted: () => void;
 }) {
   const fetcher = useCallback(() => fetchDetail(id), [id]);
@@ -90,7 +85,8 @@ export function VacancyDetailPage({
   }
 
   const { vacancy, cvs } = load.data;
-  const selectedCvId = cvs.some((c) => c.id === routeCvId) ? routeCvId : (cvs[0]?.id ?? null);
+  // Una vacante tiene un único CV (#76).
+  const cv = cvs[0] ?? null;
 
   async function remove() {
     if (!confirm(`¿Eliminar la vacante "${vacancy.title}"?`)) return;
@@ -143,19 +139,11 @@ export function VacancyDetailPage({
         <TabsContent value="cv">
           <CvSection
             vacancyId={vacancy.id}
-            cvs={cvs}
-            selectedCvId={selectedCvId}
-            onSelectCv={onSelectCv}
+            cv={cv}
             onMatch={setMatch}
-            onCreated={(cv) => {
-              setCvs((prev) => [cv, ...prev]);
-              onSelectCv(cv.id);
-            }}
-            onSaved={(cv) => setCvs((prev) => prev.map((c) => (c.id === cv.id ? cv : c)))}
-            onDeleted={(cvId) => {
-              setCvs((prev) => prev.filter((c) => c.id !== cvId));
-              onSelectCv(null);
-            }}
+            onGenerated={(doc) => setCvs(() => [doc])}
+            onSaved={(saved) => setCvs(() => [saved])}
+            onDeleted={() => setCvs(() => [])}
           />
         </TabsContent>
         <TabsContent value="match">

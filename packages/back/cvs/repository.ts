@@ -69,6 +69,23 @@ export function createCvsRepository(db: Db) {
     },
 
     /**
+     * El CV de la vacante (#76): lo crea, o si ya existe reemplaza su contenido conservando el id,
+     * así las postulaciones y los borradores ligados a él siguen apuntando al mismo CV.
+     */
+    async saveForVacancy(input: NewCv & { vacancyId: string }): Promise<CvDoc> {
+      const vacancyId = parseId(input.vacancyId);
+      if (vacancyId === null) throw new Error(`Id de vacante inválido: ${input.vacancyId}`);
+      const changes = { title: input.title, content: input.markdown, language: input.language };
+      const [row] = await db
+        .insert(cvs)
+        .values({ vacancyId, ...changes })
+        .onConflictDoUpdate({ target: cvs.vacancyId, set: { ...changes, updatedAt: new Date() } })
+        .returning({ ...meta, markdown: cvs.content });
+      if (!row) throw new Error("No se pudo guardar el CV");
+      return { ...toMeta(row), markdown: row.markdown };
+    },
+
+    /**
      * Inserta un CV de `data/` con su id viejo y sus fechas (#14). `skipped` si ese id ya se
      * importó. `vacancyLegacyId` sin vacante importada deja el CV sin vacante, como al borrarla.
      */

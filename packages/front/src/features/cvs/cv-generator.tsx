@@ -8,13 +8,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { generateCv } from "@/lib/api";
 
-/** Genera un CV para la vacante con instrucciones opcionales y muestra el texto mientras llega. */
+/**
+ * Genera el CV de la vacante con instrucciones opcionales y muestra el texto mientras llega.
+ * Con `replacing` el CV ya existe: regenerar reemplaza su contenido, así que pide confirmación.
+ */
 export function CvGenerator({
   vacancyId,
+  replacing = false,
   onMatch,
   onCreated,
 }: {
   vacancyId: string;
+  replacing?: boolean;
   onMatch: (report: MatchReport) => void;
   onCreated: (cv: CvDoc) => void;
 }) {
@@ -25,6 +30,12 @@ export function CvGenerator({
   const abortRef = useRef<AbortController | null>(null);
 
   async function generate() {
+    if (
+      replacing &&
+      !confirm("Regenerar reemplaza el contenido actual del CV, incluidos los cambios sin guardar.")
+    ) {
+      return;
+    }
     const controller = new AbortController();
     abortRef.current = controller;
     setGenerating(true);
@@ -36,7 +47,7 @@ export function CvGenerator({
         { onStatus: setStatus, onMatch, onDelta: (d) => setStreamed((s) => s + d) },
         controller.signal,
       );
-      toast.success("CV generado y guardado");
+      toast.success(replacing ? "CV regenerado y guardado" : "CV generado y guardado");
       setStreamed("");
       onCreated(cv);
     } catch (e) {
@@ -68,7 +79,7 @@ export function CvGenerator({
           </Button>
         ) : (
           <Button onClick={generate}>
-            <Sparkles /> Generar CV para esta vacante
+            <Sparkles /> {replacing ? "Regenerar CV" : "Generar CV para esta vacante"}
           </Button>
         )}
         {status && (

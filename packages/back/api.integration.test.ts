@@ -417,8 +417,10 @@ describe("API de CVs (AC-003)", () => {
       markdown: "# Ana\n**Dev**",
     });
 
+    // Un único CV por vacante (#76): regenerar reemplaza el mismo CV.
     const list = z.array(cvMetaSchema).parse(await (await call("GET", "/cvs")).json());
-    expect(list).toHaveLength(2);
+    expect(list).toHaveLength(1);
+    expect(list[0]?.id).toBe(doc.id);
     const got = cvDocSchema.parse(await (await call("GET", `/cvs/${doc.id}`)).json());
     expect(got).toEqual(doc);
   });

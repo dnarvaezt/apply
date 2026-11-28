@@ -1,0 +1,81 @@
+// @vitest-environment happy-dom
+import type { CvDoc } from "@apply/shared";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CvSection } from "./cv-section";
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+const CV: CvDoc = {
+  id: "c1",
+  vacancyId: "v1",
+  title: "CV Backend",
+  markdown: "# Ana Pérez\n\nTexto original",
+  createdAt: "2026-11-27T10:00:00.000Z",
+  updatedAt: "2026-11-27T10:00:00.000Z",
+};
+
+const reply = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+
+function serve() {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/cvs/c1")) return reply(CV);
+    return reply(null);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+const noop = () => undefined;
+const section = (cv: CvDoc | null) => (
+  <CvSection
+    vacancyId="v1"
+    cv={cv}
+    onMatch={noop}
+    onGenerated={noop}
+    onSaved={noop}
+    onDeleted={noop}
+  />
+);
+
+describe("CvSection: un único CV por vacante (#76)", () => {
+  it("sin CV ofrece generarlo y no ofrece regenerar", async () => {
+    serve();
+    render(section(null));
+
+    expect(screen.getByText("Aún no hay un CV para esta vacante")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Generar CV para esta vacante/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Regenerar con IA/ })).toBeNull();
+  });
+
+  it("con CV muestra el editor y el mensaje de correo, sin versiones, cobertura ni tarjeta de correo", async () => {
+    serve();
+    render(section(CV));
+
+    expect(await screen.findByRole("tab", { name: "Vista previa" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "PDF" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Generar mensaje de correo" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Nuevo CV/ })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Versiones del CV" })).toBeNull();
+    expect(screen.queryByText("Cobertura frente a la vacante")).toBeNull();
+    expect(screen.queryByText("Correo de postulación")).toBeNull();
+  });
+
+  it("regenerar con IA pide confirmación y, si se cancela, no genera", async () => {
+    const fetchMock = serve();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    render(section(CV));
+
+    fireEvent.click(screen.getByRole("button", { name: /Regenerar con IA/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Regenerar CV" }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("reemplaza"));
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/cvs/generate"))).toBe(false);
+  });
+});
