@@ -41,7 +41,16 @@ import { ENV_FILE } from "./paths.ts";
 import { closeBrowser, markdownToPdf } from "./pdf.ts";
 import { EMBED_MODEL, embed } from "./rag/embed.ts";
 import { buildIndex, getIndexStatus, retrieveForVacancy } from "./rag/index.ts";
-import { ensureDataDirs, listFiles, mtime, PROFILE_DIR, removeFile, safeName } from "./storage.ts";
+import {
+  DATA_DIR,
+  ensureDataDirs,
+  listFiles,
+  mtime,
+  PROFILE_DIR,
+  removeFile,
+  safeName,
+} from "./storage.ts";
+import { createImageStore } from "./vacancies/image-store.ts";
 import { createVacanciesRepository } from "./vacancies/repository.ts";
 import { vacancyRoutes } from "./vacancies/routes.ts";
 
@@ -105,6 +114,7 @@ app.route(
   "/",
   vacancyRoutes({
     repo: vacanciesRepo,
+    imageStore: createImageStore(path.join(DATA_DIR, "vacancy-images")),
     fetchText: fetchVacancyText,
     extract: extractVacancy,
     extractFromImage: extractVacancyFromImage,

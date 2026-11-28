@@ -12,6 +12,7 @@ import { createCvMatcher } from "./match-reports/service.ts";
 import { DATA_DIR } from "./storage.ts";
 import { extracted } from "./test/fixtures.ts";
 import { createIsolatedDb, type IsolatedDb } from "./test/test-db.ts";
+import { createImageStore } from "./vacancies/image-store.ts";
 import { createVacanciesRepository } from "./vacancies/repository.ts";
 import { vacancyRoutes } from "./vacancies/routes.ts";
 
@@ -100,7 +101,17 @@ beforeAll(async () => {
   const retrieve = async (v: Vacancy) => ({ ...REPORT, vacancyId: v.id });
   app = new Hono()
     .basePath("/api")
-    .route("/", vacancyRoutes({ repo: vacancies, fetchText, extract, extractFromImage, retrieve }))
+    .route(
+      "/",
+      vacancyRoutes({
+        repo: vacancies,
+        imageStore: createImageStore(path.join(DATA_DIR, "vacancy-images")),
+        fetchText,
+        extract,
+        extractFromImage,
+        retrieve,
+      }),
+    )
     .route(
       "/",
       cvRoutes({

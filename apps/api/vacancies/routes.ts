@@ -5,6 +5,7 @@ import type { ClaudeImage } from "../claude/cli.ts";
 import type { FetchedVacancy } from "../fetch-url.ts";
 import type { ExtractedImageVacancy, ExtractedVacancy } from "../llm.ts";
 import { MAX_BODY_BYTES, parseVacancyImage } from "./image.ts";
+import type { ImageStore } from "./image-store.ts";
 import { parseManualFields } from "./manual-fields.ts";
 import { detectPlatform } from "./platform.ts";
 import { resolvePostedAt } from "./posted-at.ts";
@@ -12,6 +13,8 @@ import type { VacanciesRepository } from "./repository.ts";
 
 export interface VacancyRoutesDeps {
   repo: VacanciesRepository;
+  /** Imágenes originales de las vacantes creadas desde imagen. */
+  imageStore: ImageStore;
   /** Frontera externa: descarga la página de una URL de vacante (texto y JSON-LD). */
   fetchText: (url: string) => Promise<FetchedVacancy>;
   /** Frontera externa: extrae los campos de la vacante con Claude. */
@@ -29,6 +32,7 @@ async function readBody(c: { req: { json: () => Promise<unknown> } }): Promise<u
 
 export function vacancyRoutes({
   repo,
+  imageStore,
   fetchText,
   extract,
   extractFromImage,
@@ -60,11 +64,13 @@ export function vacancyRoutes({
           let rawText = typeof text === "string" ? text.trim() : "";
           let page: FetchedVacancy | null = null;
           let imageFields: ExtractedVacancy | null = null;
+          let imageToStore: ClaudeImage | null = null;
           if (fromImage) {
             const image = parseVacancyImage(rawImage);
             if (!image.ok) return c.json({ error: image.error }, image.status);
             const { transcription, ...fields } = await extractFromImage(image.value);
             imageFields = fields;
+            imageToStore = image.value;
             rawText = transcription.trim();
             if (rawText.length < 80)
               return c.json({ error: "No se pudo leer texto suficiente de la imagen" }, 422);
@@ -102,6 +108,7 @@ export function vacancyRoutes({
             },
             createdAt,
           );
+          if (imageToStore) await imageStore.save(vacancy.id, imageToStore);
           return c.json(vacancy);
         },
       )
@@ -120,8 +127,17 @@ export function vacancyRoutes({
       })
 
       .delete("/vacancies/:id", async (c) => {
-        await repo.remove(c.req.param("id"));
+        const id = c.req.param("id");
+        await repo.remove(id);
+        // Solo tras el commit del borrado: si `remove` falla, la imagen se conserva.
+        await imageStore.remove(id);
         return c.json({ ok: true });
+      })
+
+      .get("/vacancies/:id/image", async (c) => {
+        const image = await imageStore.read(c.req.param("id"));
+        if (!image) return c.json({ error: "La vacante no tiene imagen" }, 404);
+        return c.body(new Uint8Array(image.bytes), 200, { "Content-Type": image.mediaType });
       })
 
       .get("/vacancies/:id/match", async (c) => {

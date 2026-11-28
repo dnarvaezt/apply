@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_IMAGE_BYTES, parseVacancyImage } from "./image.ts";
+import { imageFileName, MAX_IMAGE_BYTES, parseVacancyImage, VACANCY_IMAGE_TYPES } from "./image.ts";
 
 const b64 = (bytes: number) => Buffer.alloc(bytes, 1).toString("base64");
 
@@ -51,5 +51,19 @@ describe("parseVacancyImage (REQ-001, REQ-005, REQ-006)", () => {
     const data = parseVacancyImage({ mediaType: "image/png", data: "@@@@" });
     expect(type).toMatchObject({ error: expect.stringMatching(/PNG, JPEG o WebP/) });
     expect(data).toMatchObject({ error: expect.stringMatching(/base64/) });
+  });
+});
+
+describe("imageFileName (REQ-001)", () => {
+  it.each([
+    ["image/png", "7.png"],
+    ["image/jpeg", "7.jpg"],
+    ["image/webp", "7.webp"],
+  ] as const)("deriva el nombre del id y el mediaType %s", (mediaType, expected) => {
+    expect(imageFileName(7, mediaType)).toBe(expected);
+  });
+
+  it("expone los tres mediaType permitidos", () => {
+    expect([...VACANCY_IMAGE_TYPES]).toEqual(["image/png", "image/jpeg", "image/webp"]);
   });
 });
