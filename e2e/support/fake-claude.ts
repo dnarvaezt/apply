@@ -23,6 +23,10 @@ export const FAKE_VACANCY = {
   postedAtText: "hace 3 días",
 };
 
+/** Lo que "lee" Claude en la página al abrir la URL con Chrome (#69). */
+export const FAKE_PAGE_TEXT =
+  "Ingeniera Backend E2E en ACME S.A. Buscamos experiencia con TypeScript y PostgreSQL para operar APIs.";
+
 /** Correo de postulación que "redacta" Claude (#19): sin saludo, lo agrega la API. */
 export const FAKE_EMAIL = {
   subject: "Postulación: Ingeniera Backend E2E",
@@ -40,6 +44,11 @@ export const FAKE_CV_CHUNKS = [
 /** Env para la API del E2E: `claude` falso que responde según la propiedad del esquema pedido. */
 export const FAKE_CLAUDE_ENV = {
   CLAUDE_BIN: FAKE_CLAUDE_BIN,
-  FAKE_CLAUDE_OUTPUTS: JSON.stringify({ subject: FAKE_EMAIL, title: FAKE_VACANCY }),
+  FAKE_CLAUDE_OUTPUTS: JSON.stringify({
+    subject: FAKE_EMAIL,
+    // Antes que `title`: el esquema de la página también lo trae y el falso elige la primera coincidencia.
+    pageText: { ...FAKE_VACANCY, pageText: FAKE_PAGE_TEXT },
+    title: FAKE_VACANCY,
+  }),
   FAKE_CLAUDE_STREAM: JSON.stringify(FAKE_CV_CHUNKS),
 };

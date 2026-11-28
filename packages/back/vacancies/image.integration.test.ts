@@ -34,6 +34,9 @@ beforeAll(async () => {
       fetchText,
       extract: extractVacancy,
       extractFromImage: extractVacancyFromImage,
+      extractFromWeb: async () => {
+        throw new Error("no se usa");
+      },
       retrieve: async () => {
         throw new Error("no se usa");
       },

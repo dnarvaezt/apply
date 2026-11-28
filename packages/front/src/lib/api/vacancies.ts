@@ -7,6 +7,8 @@ export const vacanciesApi = {
     input: {
       text?: string;
       url?: string;
+      /** Con `url`: Claude abre la página con el MCP de Chrome en vez de descargarla. */
+      browser?: boolean;
       image?: { mediaType: string; data: string };
     } & VacancyManualFields,
   ) => request<Vacancy>("/vacancies", { method: "POST", body: json(input) }),

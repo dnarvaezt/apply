@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { ClaudeImage } from "../claude/cli.ts";
 import type { FetchedVacancy } from "../fetch-url.ts";
-import type { ExtractedImageVacancy, ExtractedVacancy } from "../llm.ts";
+import type { ExtractedImageVacancy, ExtractedVacancy, ExtractedWebVacancy } from "../llm.ts";
+import { isHttpUrl } from "./http-url.ts";
 import { MAX_BODY_BYTES, parseVacancyImage } from "./image.ts";
 import type { ImageStore } from "./image-store.ts";
 import { parseManualFields } from "./manual-fields.ts";
@@ -21,6 +22,8 @@ export interface VacancyRoutesDeps {
   extract: (rawText: string) => Promise<ExtractedVacancy>;
   /** Frontera externa: transcribe la imagen y extrae los campos en una sola llamada a Claude. */
   extractFromImage: (image: ClaudeImage) => Promise<ExtractedImageVacancy>;
+  /** Frontera externa: Claude abre la URL con el MCP de Chrome y extrae la vacante de la página. */
+  extractFromWeb: (url: string) => Promise<ExtractedWebVacancy>;
   retrieve: (vacancy: Vacancy) => Promise<MatchReport>;
 }
 
@@ -36,6 +39,7 @@ export function vacancyRoutes({
   fetchText,
   extract,
   extractFromImage,
+  extractFromWeb,
   retrieve,
 }: VacancyRoutesDeps) {
   return (
@@ -57,23 +61,37 @@ export function vacancyRoutes({
             text,
             url: rawUrl,
             image: rawImage,
-          } = body as { text?: unknown; url?: unknown; image?: unknown };
+            browser,
+          } = body as { text?: unknown; url?: unknown; image?: unknown; browser?: unknown };
 
           const fromImage = rawImage !== undefined && rawImage !== null;
+          const viaBrowser = !fromImage && browser === true;
           const url = fromImage ? null : (typeof rawUrl === "string" && rawUrl.trim()) || null;
           let rawText = typeof text === "string" ? text.trim() : "";
           let page: FetchedVacancy | null = null;
-          let imageFields: ExtractedVacancy | null = null;
+          // Campos que ya vienen de la misma llamada que leyó la imagen o la página.
+          let preExtracted: ExtractedVacancy | null = null;
           let imageToStore: ClaudeImage | null = null;
           if (fromImage) {
             const image = parseVacancyImage(rawImage);
             if (!image.ok) return c.json({ error: image.error }, image.status);
             const { transcription, ...fields } = await extractFromImage(image.value);
-            imageFields = fields;
+            preExtracted = fields;
             imageToStore = image.value;
             rawText = transcription.trim();
             if (rawText.length < 80)
               return c.json({ error: "No se pudo leer texto suficiente de la imagen" }, 422);
+          } else if (viaBrowser) {
+            if (!url || !isHttpUrl(url))
+              return c.json({ error: "Pega la URL http o https de la vacante" }, 400);
+            const { pageText, ...fields } = await extractFromWeb(url);
+            preExtracted = fields;
+            rawText = pageText.trim();
+            if (rawText.length < 80)
+              return c.json(
+                { error: "Chrome no mostró la vacante en esa URL (¿pide iniciar sesión?)" },
+                422,
+              );
           } else if (!rawText && url) {
             page = await fetchText(url);
             rawText = page.text;
@@ -82,7 +100,7 @@ export function vacancyRoutes({
             return c.json({ error: "Pega el texto de la vacante o una URL válida" }, 400);
 
           const createdAt = new Date();
-          const { postedAtText, ...extracted } = imageFields ?? (await extract(rawText));
+          const { postedAtText, ...extracted } = preExtracted ?? (await extract(rawText));
           const posted = resolvePostedAt(
             {
               manual: manual.value.postedAt ?? undefined,

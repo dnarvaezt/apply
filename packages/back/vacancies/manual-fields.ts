@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isHttpUrl } from "./http-url.ts";
 import { parseAbsoluteDate } from "./posted-at.ts";
 
 /** Campos que el usuario escribe a mano; prevalecen sobre los extraídos (REQ-005). */
@@ -17,18 +18,9 @@ const blankToNull = (text: z.ZodString) =>
 
 const optionalText = blankToNull(z.string().max(200));
 
-/** Solo http/https (REQ-007): `javascript:`, `data:`, `file:` y similares se rechazan. */
-const profileUrl = blankToNull(z.string()).refine(
-  (v) => {
-    if (v === null) return true;
-    try {
-      return ["http:", "https:"].includes(new URL(v).protocol);
-    } catch {
-      return false;
-    }
-  },
-  { message: "posterProfileUrl debe ser una URL http o https" },
-);
+const profileUrl = blankToNull(z.string()).refine((v) => v === null || isHttpUrl(v), {
+  message: "posterProfileUrl debe ser una URL http o https",
+});
 
 const postedAt = blankToNull(z.string()).transform((v, ctx) => {
   if (v === null) return null;

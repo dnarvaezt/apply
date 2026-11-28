@@ -31,6 +31,7 @@ import {
   draftApplicationEmail,
   extractVacancy,
   extractVacancyFromImage,
+  extractVacancyFromWeb,
   streamCv,
 } from "./llm.ts";
 import { createMatchReportsRepository } from "./match-reports/repository.ts";
@@ -118,6 +119,7 @@ app.route(
     fetchText: fetchVacancyText,
     extract: extractVacancy,
     extractFromImage: extractVacancyFromImage,
+    extractFromWeb: extractVacancyFromWeb,
     retrieve: retrieveForVacancy,
   }),
 );

@@ -30,9 +30,11 @@ export type ClaudeArgsInput = {
   outputFormat?: "json" | "stream-json";
   /** `stream-json` permite mandar bloques de imagen por stdin; la CLI exige entonces salida `stream-json`. */
   inputFormat?: "stream-json";
+  /** Habilita un servidor MCP (JSON de `--mcp-config`) y permite solo esas herramientas. */
+  mcp?: { config: string; allowedTools: string[] };
 };
 
-/** Banderas que aíslan la CLI: sin settings del usuario, sin herramientas, sin MCP y sin sesión. */
+/** Banderas que aíslan la CLI: sin settings del usuario, sin herramientas integradas, solo el MCP de `--mcp-config` y sin sesión. */
 function isolationFlags(model: string, effort: "low" | "high", system: string): string[] {
   return [
     "--model",
@@ -79,6 +81,9 @@ export function buildClaudeArgs(input: ClaudeArgsInput): string[] {
     ...(format === "stream-json" ? ["--verbose"] : []),
     "--json-schema",
     JSON.stringify(input.jsonSchema),
+    ...(input.mcp
+      ? ["--mcp-config", input.mcp.config, "--allowedTools", input.mcp.allowedTools.join(",")]
+      : []),
     ...isolationFlags(input.model, "low", input.system),
   ];
 }

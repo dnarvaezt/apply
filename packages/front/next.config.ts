@@ -14,6 +14,11 @@ const config: NextConfig = {
   // @apply/shared se publica como TypeScript sin compilar.
   transpilePackages: ["@apply/shared"],
   allowedDevOrigins: ownNetworkAddresses,
+  experimental: {
+    // El proxy corta a los 30 s por defecto; analizar una vacante con Claude (imagen o Chrome) tarda
+    // más. Igual al timeout por defecto de la CLI (CLAUDE_TIMEOUT_MS, 600 s) para que corte la API.
+    proxyTimeout: 600_000,
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiOrigin}/api/:path*` }];
   },

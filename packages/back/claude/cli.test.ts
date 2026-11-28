@@ -65,6 +65,25 @@ describe("buildClaudeArgs (AC-002)", () => {
     expect(args).toContain("--no-session-persistence");
   });
 
+  it("sin mcp no carga servidores ni permite herramientas", () => {
+    expect(args).not.toContain("--mcp-config");
+    expect(args).not.toContain("--allowedTools");
+  });
+
+  it("con mcp pasa el config y permite solo sus herramientas", () => {
+    const withMcp = buildClaudeArgs({
+      model: "m",
+      system: "s",
+      jsonSchema: {},
+      mcp: { config: '{"mcpServers":{}}', allowedTools: ["mcp__a__x", "mcp__a__y"] },
+    });
+    const value = (flag: string) => withMcp[withMcp.indexOf(flag) + 1];
+    expect(value("--mcp-config")).toBe('{"mcpServers":{}}');
+    expect(value("--allowedTools")).toBe("mcp__a__x,mcp__a__y");
+    expect(value("--tools")).toBe("");
+    expect(withMcp).toContain("--strict-mcp-config");
+  });
+
   it("no usa --bare ni --verbose en modo json", () => {
     expect(args).not.toContain("--bare");
     expect(args).not.toContain("--verbose");
