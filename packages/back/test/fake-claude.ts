@@ -62,7 +62,11 @@ export function useFakeClaude(
     invoked: () => existsSync(captureFile),
     /** Argumentos y stdin de la última invocación. */
     capture: () =>
-      JSON.parse(readFileSync(captureFile, "utf8")) as { args: string[]; stdin: string },
+      JSON.parse(readFileSync(captureFile, "utf8")) as {
+        args: string[];
+        stdin: string;
+        mcpOutputTokens: string | null;
+      },
     pid: () => Number(readFileSync(pidFile, "utf8")),
     restore() {
       for (const k of keys) {

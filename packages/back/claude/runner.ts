@@ -19,7 +19,14 @@ import {
   toClaudeJsonSchema,
 } from "./cli.ts";
 
-type RunInput = { bin: string; args: string[]; stdin: string; timeoutMs: number };
+type RunInput = {
+  bin: string;
+  args: string[];
+  stdin: string;
+  timeoutMs: number;
+  /** Variables que esta llamada fija por encima del entorno del proceso. */
+  env?: Record<string, string>;
+};
 
 /** Ejecuta el binario en un directorio temporal vacío y devuelve su stdout; termina al hijo si vence el timeout. */
 export async function runClaudeProcess(input: RunInput): Promise<string> {
@@ -28,7 +35,7 @@ export async function runClaudeProcess(input: RunInput): Promise<string> {
     return await new Promise<string>((resolve, reject) => {
       const child = spawn(input.bin, input.args, {
         cwd,
-        env: buildClaudeEnv(process.env),
+        env: { ...buildClaudeEnv(process.env), ...input.env },
         stdio: ["pipe", "pipe", "pipe"],
       });
       let stdout = "";
@@ -75,7 +82,7 @@ export async function runClaudeStructured<T>(input: {
   what: string;
   /** Si viene, la entrada va por `stream-json` con el bloque de imagen y `prompt` como texto. */
   image?: ClaudeImage;
-  mcp?: ClaudeArgsInput["mcp"];
+  mcp?: ClaudeArgsInput["mcp"] & { env?: Record<string, string> };
 }): Promise<T> {
   const config = readClaudeConfig(process.env);
   const stdout = await runClaudeProcess({
@@ -85,10 +92,11 @@ export async function runClaudeStructured<T>(input: {
       system: input.system,
       jsonSchema: toClaudeJsonSchema(input.schema),
       inputFormat: input.image ? "stream-json" : undefined,
-      mcp: input.mcp,
+      mcp: input.mcp && { config: input.mcp.config, allowedTools: input.mcp.allowedTools },
     }),
     stdin: input.image ? buildImageInput(input.prompt, input.image) : input.prompt,
     timeoutMs: config.timeoutMs,
+    env: input.mcp?.env,
   });
   return parseClaudeResult(stdout, input.schema, input.what);
 }

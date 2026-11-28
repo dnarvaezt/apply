@@ -21,26 +21,42 @@ describe("buildBrowserMcp (#69)", () => {
         "--isolated",
         "--executablePath",
         "/usr/bin/chrome",
+        "--backgroundNewPages",
         "--no-usage-statistics",
       ],
     });
+    expect(mcp.env).toEqual({ MAX_MCP_OUTPUT_TOKENS: "100000" });
     expect(mcp.allowedTools.every((t) => t.startsWith("mcp__chrome-devtools__"))).toBe(true);
     expect(mcp.allowedTools).not.toContain("mcp__chrome-devtools__evaluate_script");
     expect(mcp.allowedTools).not.toContain("mcp__chrome-devtools__click");
   });
 
-  it("con browserUrl se conecta al Chrome abierto", () => {
+  it("con userDataDir se conecta al Chrome abierto del usuario sin robarle el foco (#71)", () => {
     const mcp = buildBrowserMcp({
       node: "/n",
       serverBin: "/s.js",
-      target: { browserUrl: "http://127.0.0.1:9222" },
+      target: { userDataDir: "/home/u/.config/google-chrome" },
     });
     expect(server(mcp.config)?.args).toEqual([
       "/s.js",
-      "--browserUrl",
-      "http://127.0.0.1:9222",
+      "--autoConnect",
+      "--userDataDir",
+      "/home/u/.config/google-chrome",
+      "--backgroundNewPages",
       "--no-usage-statistics",
     ]);
+  });
+
+  it("abre la vacante en una pestaña nueva: no puede navegar la pestaña que el usuario está usando (#71)", () => {
+    const { allowedTools } = buildBrowserMcp({
+      node: "/n",
+      serverBin: "/s.js",
+      target: { userDataDir: "/u" },
+    });
+    expect(allowedTools).toContain("mcp__chrome-devtools__new_page");
+    expect(allowedTools).toContain("mcp__chrome-devtools__close_page");
+    expect(allowedTools).not.toContain("mcp__chrome-devtools__navigate_page");
+    expect(allowedTools).not.toContain("mcp__chrome-devtools__select_page");
   });
 });
 

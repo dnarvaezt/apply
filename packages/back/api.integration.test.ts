@@ -203,6 +203,15 @@ describe("API de vacantes (AC-003)", () => {
     });
   });
 
+  it("con browser abre la vista de la vacante, no la búsqueda de LinkedIn que la contiene (#71)", async () => {
+    const { body } = await createVacancy({
+      url: "https://www.linkedin.com/jobs/search-results/?currentJobId=4495320408&eBP=Cw&keywords=x",
+      browser: true,
+    });
+    expect(extractFromWeb).toHaveBeenCalledWith("https://www.linkedin.com/jobs/view/4495320408/");
+    expect(body).toMatchObject({ sourceUrl: "https://www.linkedin.com/jobs/view/4495320408/" });
+  });
+
   it.each([{}, { url: "javascript:alert(1)" }, { url: "no es url" }])(
     "con browser y sin URL http(s) (%o) responde 400 sin abrir Chrome",
     async (input) => {

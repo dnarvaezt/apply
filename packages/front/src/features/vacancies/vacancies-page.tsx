@@ -204,7 +204,8 @@ export function VacanciesPage({ selectedId: routeId, onSelect, onCvCreated }: Va
                   onChange={(e) => setUrl(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Claude abre la página en Chrome (MCP) y la lee como la verías tú. Tarda más que
+                  Claude abre la página en una pestaña de tu Chrome, con tu sesión, y la lee como la
+                  verías tú. Requiere activar chrome://inspect/#remote-debugging. Tarda más que
                   "Desde URL".
                 </p>
               </TabsContent>

@@ -7,6 +7,7 @@ import type { ExtractedImageVacancy, ExtractedVacancy, ExtractedWebVacancy } fro
 import { isHttpUrl } from "./http-url.ts";
 import { MAX_BODY_BYTES, parseVacancyImage } from "./image.ts";
 import type { ImageStore } from "./image-store.ts";
+import { canonicalVacancyUrl } from "./linkedin-url.ts";
 import { parseManualFields } from "./manual-fields.ts";
 import { detectPlatform } from "./platform.ts";
 import { resolvePostedAt } from "./posted-at.ts";
@@ -66,7 +67,8 @@ export function vacancyRoutes({
 
           const fromImage = rawImage !== undefined && rawImage !== null;
           const viaBrowser = !fromImage && browser === true;
-          const url = fromImage ? null : (typeof rawUrl === "string" && rawUrl.trim()) || null;
+          const pasted = fromImage ? null : (typeof rawUrl === "string" && rawUrl.trim()) || null;
+          const url = pasted && canonicalVacancyUrl(pasted);
           let rawText = typeof text === "string" ? text.trim() : "";
           let page: FetchedVacancy | null = null;
           // Campos que ya vienen de la misma llamada que leyó la imagen o la página.
