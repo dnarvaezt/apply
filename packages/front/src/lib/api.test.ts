@@ -88,44 +88,46 @@ describe("api", () => {
 });
 
 describe("api.applications", () => {
-  it("lista, filtra por vacante, lee la línea de tiempo y crea con POST", async () => {
+  it("lee la línea de tiempo de una postulación", async () => {
     const fetchMock = stubFetch(() => jsonResponse({}));
-    await api.applications.list();
-    await api.applications.list("v 1");
     await api.applications.timeline("a1");
-    await api.applications.create({ vacancyId: "v1", cvId: "c1" });
-    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
-    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
-      "GET /api/applications",
-      "GET /api/applications?vacancyId=v%201",
-      "GET /api/applications/a1",
-      "POST /api/applications",
-    ]);
-    expect(calls[3][1]?.body).toBe(JSON.stringify({ vacancyId: "v1", cvId: "c1" }));
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(url).toBe("/api/applications/a1");
   });
 
-  it("registra eventos, lista canales y gestiona contactos de la vacante", async () => {
+  it("lista canales y gestiona contactos de la vacante", async () => {
     const fetchMock = stubFetch(() => jsonResponse({}));
-    await api.applications.addEvent("a1", { type: "interview", source: "manual" });
     await api.applications.channels();
     await api.contacts.add("v1", { name: "Ana", isProcessStart: true });
     await api.contacts.update("c 1", { name: "Ana P." });
     await api.contacts.markProcessStart("v1", "c1", false);
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
     expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
-      "POST /api/applications/a1/events",
       "GET /api/channels",
       "POST /api/vacancies/v1/contacts",
       "PUT /api/contacts/c%201",
       "PATCH /api/vacancies/v1/contacts/c1",
     ]);
     expect(calls.map(([, i]) => i?.body)).toEqual([
-      JSON.stringify({ type: "interview", source: "manual" }),
       undefined,
       JSON.stringify({ name: "Ana", isProcessStart: true }),
       JSON.stringify({ name: "Ana P." }),
       JSON.stringify({ isProcessStart: false }),
     ]);
+  });
+
+  it("lee el proceso de la vacante y lo mueve con POST /status (#82)", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    await api.process.get("v 1");
+    await api.process.move("v1", { to: "discarded", discardReason: "rejected", note: "No sigue" });
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
+    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
+      "GET /api/vacancies/v%201/process",
+      "POST /api/vacancies/v1/status",
+    ]);
+    expect(calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ to: "discarded", discardReason: "rejected", note: "No sigue" }),
+    );
   });
 
   it("pide las métricas de seguimiento a GET /metrics", async () => {

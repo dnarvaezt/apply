@@ -7,7 +7,7 @@ const VACANCY_TEXT =
 const RECRUITER = "seleccion.plataforma@example.com";
 
 // AC-007 (#22): con Gmail mockeado, una respuesta en el hilo de un correo enviado aparece tras
-// sincronizar como evento automático, y la vista declara la cobertura de la detección. Crea una
+// sincronizar como cambio de estado automático, y la vista declara la cobertura de la detección. Crea una
 // postulación, así que corre en el proyecto `applications`.
 test("AC-007 (#22): la respuesta detectada aparece como evento automático con el aviso de cobertura", async ({
   page,
@@ -46,12 +46,11 @@ test("AC-007 (#22): la respuesta detectada aparece como evento automático con e
   const result = (await (await request.post(`${API}/gmail/sync`)).json()) as GmailSyncResult;
   expect(result).toMatchObject({ state: "synced", recorded: 1 });
 
-  await page.goto(`/vacancies/${vacancy.id}?tab=application`);
-  const events = page.locator('[data-id="application-timeline__event"]', {
-    hasText: "Contactada",
-  });
-  await expect(events).toHaveCount(1);
-  await expect(events).toContainText("automático");
+  await page.goto(`/vacancies/${vacancy.id}?tab=process`);
+  // La respuesta mueve la vacante a «En contacto» sola (#81): queda como cambio automático.
+  const changes = page.locator('[data-id="status-history__item"]', { hasText: "En contacto" });
+  await expect(changes).toHaveCount(1);
+  await expect(changes).toContainText("automático");
 
   const notice = page.locator('[data-id="reply-sync-notice"]');
   await expect(notice).toContainText("contactos con email conocido");

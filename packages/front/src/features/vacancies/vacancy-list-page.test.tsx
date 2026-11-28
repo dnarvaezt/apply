@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { application } from "../applications/fixtures";
 import { vacancy } from "./fixtures";
 import { VacancyListPage } from "./vacancy-list-page";
 
@@ -13,7 +12,7 @@ afterEach(() => {
 const reply = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** La frontera es HTTP: vacantes, postulaciones y CVs por ruta. */
+/** La frontera es HTTP: vacantes y CVs por ruta. */
 function serve(routes: Record<string, unknown>) {
   vi.stubGlobal(
     "fetch",
@@ -36,10 +35,9 @@ describe("VacancyListPage (#73)", () => {
   it("lista cada vacante con su estado, sus CVs y el enlace a su detalle", async () => {
     serve({
       "/vacancies": [
-        vacancy({ id: "10", title: "Ingeniera Backend", company: "ACME" }),
+        vacancy({ id: "10", title: "Ingeniera Backend", company: "ACME", status: "interview" }),
         vacancy({ id: "11", title: "Diseñadora", company: "Nequi" }),
       ],
-      "/applications": [application({ vacancyId: "10", status: "interview" })],
       "/cvs": [cv("a", "10"), cv("b", "10")],
     });
     render(<VacancyListPage />);
@@ -49,7 +47,7 @@ describe("VacancyListPage (#73)", () => {
     expect(within(backend as HTMLElement).getByText("Entrevista")).toBeTruthy();
     expect(within(backend as HTMLElement).getByText("2 CVs")).toBeTruthy();
     const design = screen.getByText("Diseñadora").closest("a") as HTMLElement;
-    expect(within(design).getByText("Sin postular")).toBeTruthy();
+    expect(within(design).getByText("Por postular")).toBeTruthy();
     expect(screen.getByText("2 ingresadas")).toBeTruthy();
   });
 
@@ -59,7 +57,6 @@ describe("VacancyListPage (#73)", () => {
         vacancy({ id: "10", title: "Ingeniera Backend", company: "ACME" }),
         vacancy({ id: "11", title: "Diseñadora", company: "Nequi" }),
       ],
-      "/applications": [],
       "/cvs": [],
     });
     render(<VacancyListPage />);
@@ -73,8 +70,29 @@ describe("VacancyListPage (#73)", () => {
     expect(screen.getByText("Ninguna vacante coincide")).toBeTruthy();
   });
 
+  it("filtra por estado, cuenta las vacantes de cada uno y muestra el motivo del descarte (#82)", async () => {
+    serve({
+      "/vacancies": [
+        vacancy({ id: "10", title: "Ingeniera Backend", status: "interview" }),
+        vacancy({ id: "11", title: "Diseñadora", status: "discarded", discardReason: "closed" }),
+      ],
+      "/cvs": [],
+    });
+    render(<VacancyListPage />);
+    const filter = (await screen.findByLabelText("Estado")) as HTMLSelectElement;
+    expect(within(filter).getByRole("option", { name: "Entrevista (1)" })).toBeTruthy();
+    expect(screen.getByText("Descartada (vacante cerrada)")).toBeTruthy();
+
+    fireEvent.change(filter, { target: { value: "interview" } });
+    expect(screen.getByText("Ingeniera Backend")).toBeTruthy();
+    expect(screen.queryByText("Diseñadora")).toBeNull();
+
+    fireEvent.change(filter, { target: { value: "offer" } });
+    expect(screen.getByText("Ninguna vacante coincide")).toBeTruthy();
+  });
+
   it("sin vacantes invita a crear la primera", async () => {
-    serve({ "/vacancies": [], "/applications": [], "/cvs": [] });
+    serve({ "/vacancies": [], "/cvs": [] });
     render(<VacancyListPage />);
 
     expect(await screen.findByText("Aún no hay vacantes")).toBeTruthy();

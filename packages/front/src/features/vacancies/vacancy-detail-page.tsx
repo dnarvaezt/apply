@@ -7,26 +7,28 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LoadFailure, LoadingBlock } from "@/components/load-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ApplicationPanel } from "@/features/applications/application-panel";
 import { CvSection } from "@/features/cvs/cv-section";
+import { ProcessPanel } from "@/features/process/process-panel";
 import { api } from "@/lib/api";
 import { useLoad } from "@/lib/use-load";
 import { MatchOverview } from "./match-overview";
 import { VacancyMeta } from "./vacancy-meta";
 import { VacancyOverview } from "./vacancy-overview";
 
-export const DETAIL_TABS = ["vacancy", "cv", "match", "application"] as const;
+export const DETAIL_TABS = ["vacancy", "cv", "match", "process"] as const;
 export type DetailTab = (typeof DETAIL_TABS)[number];
 
 const TAB_LABEL: Record<DetailTab, string> = {
   vacancy: "Vacante",
   cv: "CV",
   match: "Match",
-  application: "Línea de tiempo",
+  process: "Proceso",
 };
 
 /** Tab de la URL (`?tab=`); uno desconocido o ausente abre la vacante. */
 export function parseDetailTab(value: string | null): DetailTab {
+  // `application` era el tab de la línea de tiempo: los enlaces guardados abren el proceso.
+  if (value === "application") return "process";
   return DETAIL_TABS.find((t) => t === value) ?? "vacancy";
 }
 
@@ -37,7 +39,7 @@ async function fetchDetail(id: string) {
   return { vacancy, cvs: cvs.filter((c) => c.vacancyId === id).sort(newestFirst) };
 }
 
-/** Detalle de la vacante en tabs: la vacante, su CV, el match y la línea de tiempo. */
+/** Detalle de la vacante en tabs: la vacante, su CV, el match y su proceso. */
 export function VacancyDetailPage({
   id,
   tab,
@@ -157,8 +159,8 @@ export function VacancyDetailPage({
         <TabsContent value="match">
           <MatchOverview vacancy={vacancy} match={match} matching={matching} />
         </TabsContent>
-        <TabsContent value="application">
-          <ApplicationPanel vacancyId={vacancy.id} cvs={cvs} />
+        <TabsContent value="process">
+          <ProcessPanel vacancyId={vacancy.id} />
         </TabsContent>
       </Tabs>
     </div>
