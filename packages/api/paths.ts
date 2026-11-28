@@ -1,6 +1,6 @@
 import path from "node:path";
 
-/** Raíz del repo, derivada de la ubicación de este archivo (apps/api), nunca de `process.cwd()`. */
+/** Raíz del repo, derivada de la ubicación de este archivo (packages/api), nunca de `process.cwd()`. */
 export const APP_ROOT = path.resolve(import.meta.dirname, "../..");
 
 export const ENV_FILE = path.join(APP_ROOT, ".env");

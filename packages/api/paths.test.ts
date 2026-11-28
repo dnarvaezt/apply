@@ -28,12 +28,12 @@ describe("AC-003: rutas ancladas a la raíz del repo", () => {
     expect(resolveDataDir("/abs/dir")).toBe("/abs/dir");
   });
 
-  it("con cwd apps/api, storage resuelve data/ en la raíz y no en el cwd", () => {
+  it("con cwd packages/api, storage resuelve data/ en la raíz y no en el cwd", () => {
     const out = inApiCwd("import('./storage.ts').then(m => console.log(m.DATA_DIR))");
     expect(out).toBe(path.join(repoRoot, "data"));
   });
 
-  it("con cwd apps/api, paths resuelve .cache/models y .env en la raíz", () => {
+  it("con cwd packages/api, paths resuelve .cache/models y .env en la raíz", () => {
     const out = inApiCwd(
       "import('./paths.ts').then(m => console.log(JSON.stringify([m.MODELS_DIR, m.ENV_FILE])))",
     );

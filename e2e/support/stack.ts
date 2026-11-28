@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { startFakeGoogle } from "../../apps/api/test/fake-google.ts";
+import { startFakeGoogle } from "../../packages/api/test/fake-google.ts";
 import { startEphemeralPostgres } from "../../packages/db/test/ephemeral-postgres.ts";
 import { E2E_DB_URL_FILE } from "./db-url.ts";
 import { FAKE_CLAUDE_ENV } from "./fake-claude.ts";
