@@ -11,7 +11,7 @@ DEV_CMD ?= npm run dev
 
 # Artefactos regenerables; nunca incluye data/, .env, .cache (modelos) ni el volumen de Postgres.
 CLEAN_PATHS := reports coverage test-results playwright-report blob-report .stryker-tmp \
-	apps/web/dist node_modules/.tmp
+	packages/web/dist node_modules/.tmp
 
 running = [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null
 
@@ -126,4 +126,4 @@ clean: ## Borra reportes, builds y temporales (no toca data/, .env, modelos ni l
 	rm -rf $(CLEAN_PATHS) $(RUN_DIR)
 
 clean-all: clean ## clean + node_modules (luego 'make install')
-	rm -rf node_modules apps/*/node_modules packages/*/node_modules
+	rm -rf node_modules packages/*/node_modules

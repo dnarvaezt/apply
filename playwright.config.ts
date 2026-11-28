@@ -7,7 +7,7 @@ const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 5174);
 const GOOGLE_PORT = API_PORT + 2000; // Google falso: el spec de #22 le inyecta respuestas
 const E2E_DATA_DIR = "node_modules/.tmp/e2e-data";
 
-// Chrome/Chromium del host (misma idea que CHROME_CANDIDATES de apps/api/pdf.ts);
+// Chrome/Chromium del host (misma idea que CHROME_CANDIDATES de packages/api/pdf.ts);
 // si no hay ninguno, Playwright usa su propio Chromium (`npx playwright install chromium`).
 const hostChrome = [
   process.env.CHROME_PATH,

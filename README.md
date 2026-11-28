@@ -77,23 +77,23 @@ Atajos con `make` (`make help` los lista): `make env` crea `.env` desde `.env.ex
 - `npm run db:generate`: `drizzle-kit generate` en `packages/db` (no necesita Postgres)
 - `npm run db:migrate`: aplica las migraciones versionadas de `packages/db/drizzle/` (extensión `vector`, 13 tablas, semilla de `platforms` y `channels`) sobre la base de `DATABASE_URL`; es idempotente
 - `npm run db:import`: importa a Postgres las vacantes y los CVs de `data/` (conserva su id viejo en `legacy_id`, sus fechas y la relación CV → vacante) y reconstruye el índice del perfil. Es idempotente: lo ya importado se cuenta como omitido. No modifica ni borra archivos de `data/`. Imprime los conteos y sale con código 1 si algún archivo no se pudo importar
-- `npm run match:calibrate [carpeta]`: mide los umbrales del match del CV (`fuerte`/`parcial`) contra pares CV-vacante etiquetados a mano y propone los que más aciertan, con la tabla de aciertos antes y después. Lee `data/match-sample/*.json` por defecto (fuera de git: son CVs reales). Cada archivo: `{ "cv": "<Markdown>", "vacancy": { "mustHave": [...], "niceToHave": [...], "keywords": [...] }, "expected": [{ "requirement": "<texto exacto de mustHave o niceToHave>", "level": "fuerte" | "parcial" | "débil" }] }`. No cambia nada: los umbrales se editan en `apps/api/rag/match.ts`
+- `npm run match:calibrate [carpeta]`: mide los umbrales del match del CV (`fuerte`/`parcial`) contra pares CV-vacante etiquetados a mano y propone los que más aciertan, con la tabla de aciertos antes y después. Lee `data/match-sample/*.json` por defecto (fuera de git: son CVs reales). Cada archivo: `{ "cv": "<Markdown>", "vacancy": { "mustHave": [...], "niceToHave": [...], "keywords": [...] }, "expected": [{ "requirement": "<texto exacto de mustHave o niceToHave>", "level": "fuerte" | "parcial" | "débil" }] }`. No cambia nada: los umbrales se editan en `packages/api/rag/match.ts`
 - `npm run lint`: Biome
 - `npm run format`: Biome con `--write`
 - `npm test`: Vitest (proyectos `api`, `web`, `db` y `db-integration`; los de integración levantan Postgres efímero con Docker)
 - `npm run coverage`: cobertura v8, falla bajo 80% de líneas o ramas
 - `npm run mutation`: Stryker sobre módulos puros, falla bajo 70%
-- `npm run mut:smoke`: canario de mutación sobre `apps/api/rag/chunk.ts`
+- `npm run mut:smoke`: canario de mutación sobre `packages/api/rag/chunk.ts`
 - `npm run claude:smoke`: smoke manual opt-in contra el `claude` real (fuera de `npm test` y del e2e); sale con exit 1 si `apiKeySource` no es `none` o falta `structured_output`. La extracción de la vacante, el correo y el CV (en streaming; se cancela si el cliente se desconecta) usan `claude -p` local: `CLAUDE_BIN` (default `claude`), `CLAUDE_MODEL` (default `claude-opus-5-5`) y `CLAUDE_TIMEOUT_MS` (default `600000`); el hijo no recibe ninguna `ANTHROPIC_*`.
-- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), `claude` falso para la vacante, el correo y el CV en streaming (`apps/api/test/fake-claude.mjs`, vía `CLAUDE_BIN`) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); Google falso usa `E2E_API_PORT + 2000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
+- `npm run e2e`: Playwright con la web y la API reales sobre un Postgres efímero (Testcontainers, con migraciones; nunca la base `apply`), `claude` falso para la vacante, el correo y el CV en streaming (`packages/api/test/fake-claude.mjs`, vía `CLAUDE_BIN`) y un directorio de datos temporal. Necesita Docker; usa Chrome del host o `npx playwright install chromium`. Puertos por entorno para correr dos worktrees a la vez: `E2E_API_PORT` (3101), `E2E_WEB_PORT` (5174); Google falso usa `E2E_API_PORT + 2000`. Ej.: `E2E_API_PORT=3201 E2E_WEB_PORT=5274 npm run e2e`
 
 ## Estructura
 
 ```
-apps/api/        API Hono (@apply/api): index.ts monta las rutas; por entidad: vacancies/ y cvs/ (routes + repository), companies/; db.ts (cliente), storage.ts, rag/, llm.ts, pdf.ts, fetch-url.ts
-apps/web/        Vite + React + shadcn (@apply/web); src/features: profile, vacancies, cvs
+packages/api/        API Hono (@apply/api): index.ts monta las rutas; por entidad: vacancies/ y cvs/ (routes + repository), companies/; db.ts (cliente), storage.ts, rag/, llm.ts, pdf.ts, fetch-url.ts
+packages/web/        Vite + React + shadcn (@apply/web); src/features: profile, vacancies, cvs
 packages/shared/ @apply/shared: tipos por entidad (vacancy.ts, cv.ts, types.ts) reexportados desde index.ts, y el CSS del CV (el mismo para la vista previa y el PDF)
 packages/db/     @apply/db: esquema Drizzle (13 tablas), migraciones versionadas en `drizzle/`, `migrate.ts`, drizzle.config.ts y cliente
 ```
 
-Monorrepo con npm workspaces (`apps/*`, `packages/*`) y un único `package-lock.json`. `data/`, `.cache/models` y `.env` se resuelven siempre en la raíz del repo (`apps/api/paths.ts`), sin importar el cwd.
+Monorrepo con npm workspaces (`packages/*`) y un único `package-lock.json`. `data/`, `.cache/models` y `.env` se resuelven siempre en la raíz del repo (`packages/api/paths.ts`), sin importar el cwd.
