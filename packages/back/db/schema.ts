@@ -139,7 +139,8 @@ export const cvs = pgTable(
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("cvs_vacancy_id_idx").on(t.vacancyId)],
+  /** Un único CV por vacante (#76); los CVs sin vacante (`null`) no chocan entre sí. */
+  (t) => [uniqueIndex("cvs_vacancy_id_uq").on(t.vacancyId)],
 );
 
 export const matchReports = pgTable(

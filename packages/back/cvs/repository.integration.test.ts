@@ -102,6 +102,43 @@ describe("repositorio de CVs (AC-001)", () => {
   });
 });
 
+describe("un único CV por vacante (#76)", () => {
+  it("saveForVacancy al regenerar elimina el CV actual y su correo, y crea uno nuevo", async () => {
+    const vacancy = await vacancies.create(newVacancy());
+    const first = await cvs.saveForVacancy({
+      ...input(vacancy.id, "Primero"),
+      vacancyId: vacancy.id,
+    });
+    await iso.db
+      .insert(outboundEmails)
+      .values({ cvId: Number(first.id), subject: "S", body: "B", language: "es" });
+
+    const second = await cvs.saveForVacancy({
+      ...input(vacancy.id, "Segundo"),
+      vacancyId: vacancy.id,
+      markdown: "# Nuevo",
+    });
+
+    expect(second).toMatchObject({ title: "Segundo", markdown: "# Nuevo", vacancyId: vacancy.id });
+    expect(second.id).not.toBe(first.id);
+    expect(await cvs.get(first.id)).toBeNull();
+    expect((await cvs.list()).map((c) => c.id)).toEqual([second.id]);
+    expect(await iso.db.select().from(outboundEmails)).toHaveLength(0);
+  });
+
+  it("la base rechaza un segundo CV para la misma vacante", async () => {
+    const vacancy = await vacancies.create(newVacancy());
+    await cvs.create(input(vacancy.id));
+    await expect(cvs.create(input(vacancy.id))).rejects.toThrow();
+  });
+
+  it("los CVs sin vacante no chocan entre sí", async () => {
+    await cvs.create(input(null));
+    await cvs.create(input(null));
+    expect(await cvs.list()).toHaveLength(2);
+  });
+});
+
 describe("borrar un CV no deja filas huérfanas (REQ-006)", () => {
   it("elimina sus informes de match", async () => {
     const vacancy = await vacancies.create(newVacancy());

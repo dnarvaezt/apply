@@ -28,31 +28,23 @@ export function VacancyEditRoute() {
   return <VacancyEditPage id={id} onSaved={() => router.push(detailHref(id))} />;
 }
 
-/** Href del detalle con su tab y CV; omite los valores por defecto. */
-export function detailTabHref(id: string, tab: DetailTab, cvId: string | null): string {
-  const params = new URLSearchParams();
-  if (tab !== "vacancy") params.set("tab", tab);
-  if (cvId) params.set("cv", cvId);
-  const query = params.toString();
-  return query ? `${detailHref(id)}?${query}` : detailHref(id);
+/** Href del detalle con su tab; omite el tab por defecto. */
+export function detailTabHref(id: string, tab: DetailTab): string {
+  return tab === "vacancy" ? detailHref(id) : `${detailHref(id)}?tab=${tab}`;
 }
 
-/** `?tab=` elige la sección y `?cv=<id>` el CV abierto; cambiarlos reemplaza la entrada del historial. */
+/** `?tab=` elige la sección; cambiarlo reemplaza la entrada del historial. */
 export function VacancyDetailRoute() {
   const id = useVacancyId();
   const router = useRouter();
   const params = useSearchParams();
   const tab = parseDetailTab(params.get("tab"));
-  const cvId = params.get("cv");
-  const go = (nextTab: DetailTab, nextCv: string | null) =>
-    router.replace(detailTabHref(id, nextTab, nextCv), { scroll: false });
+  const go = (next: DetailTab) => router.replace(detailTabHref(id, next), { scroll: false });
   return (
     <VacancyDetailPage
       id={id}
       tab={tab}
-      onSelectTab={(next) => go(next, cvId)}
-      selectedCvId={cvId}
-      onSelectCv={(next) => go(tab, next)}
+      onSelectTab={go}
       onDeleted={() => router.push("/vacancies")}
     />
   );

@@ -1,4 +1,4 @@
-import type { CvDoc, CvMatchReport, CvMeta } from "@apply/shared";
+import type { CvDoc, CvMeta } from "@apply/shared";
 import { Copy, FileDown, FileText, Loader2, Maximize, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -11,10 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, download } from "@/lib/api";
 import { useLoad } from "@/lib/use-load";
-import { CvEmailDraft } from "./cv-email-draft";
-import { CvMatchPanel } from "./cv-match-panel";
 
-/** Abre un CV: lo edita en Markdown, lo previsualiza, lo exporta y muestra su cobertura y su correo. */
+/** Abre un CV: lo edita en Markdown, lo previsualiza y lo exporta. */
 export function CvEditor({
   cvId,
   onSaved,
@@ -52,27 +50,15 @@ function CvDocEditor({
   const [markdown, setMarkdown] = useState(doc.markdown);
   const [title, setTitle] = useState(doc.title);
   const [exporting, setExporting] = useState(false);
-  const [match, setMatch] = useState<CvMatchReport | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const dirty = markdown !== cv.markdown || title !== cv.title;
-
-  const loadMatch = useCallback((id: string) => {
-    setMatch(null);
-    api.cvs
-      .match(id)
-      .then(setMatch)
-      .catch((e: Error) => toast.error(`Cobertura: ${e.message}`));
-  }, []);
-
-  useEffect(() => loadMatch(doc.id), [doc.id, loadMatch]);
 
   async function save(): Promise<CvDoc | null> {
     try {
       const updated = await api.cvs.save(cv.id, markdown, title);
       setCv(updated);
       onSaved?.(updated);
-      loadMatch(updated.id);
       return updated;
     } catch (e) {
       toast.error((e as Error).message);
@@ -188,8 +174,6 @@ function CvDocEditor({
           </div>
         </TabsContent>
       </Tabs>
-      {match?.cvId === cv.id && <CvMatchPanel report={match} />}
-      <CvEmailDraft cvId={cv.id} />
     </div>
   );
 }

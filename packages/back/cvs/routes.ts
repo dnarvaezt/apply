@@ -94,7 +94,7 @@ export function cvRoutes({
           }
           if (generation.signal.aborted) return;
 
-          const doc = await repo.create({
+          const doc = await repo.saveForVacancy({
             vacancyId: vacancy.id,
             title: `${vacancy.title} — ${vacancy.company}`,
             markdown: cleanMarkdown(markdown),

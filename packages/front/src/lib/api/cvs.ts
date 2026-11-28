@@ -1,10 +1,9 @@
-import type { CvDoc, CvMatchReport, CvMeta, MatchReport } from "@apply/shared";
+import type { CvDoc, CvMeta, MatchReport } from "@apply/shared";
 import { json, request } from "./http.ts";
 
 export const cvsApi = {
   list: () => request<CvMeta[]>("/cvs"),
   get: (id: string) => request<CvDoc>(`/cvs/${id}`),
-  match: (id: string) => request<CvMatchReport>(`/cvs/${id}/match`),
   save: (id: string, markdown: string, title?: string) =>
     request<CvDoc>(`/cvs/${id}`, { method: "PUT", body: json({ markdown, title }) }),
   remove: (id: string) => request(`/cvs/${id}`, { method: "DELETE" }),

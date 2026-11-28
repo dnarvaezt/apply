@@ -75,7 +75,6 @@ describe("api", () => {
     await api.vacancies.match("v1");
     await api.cvs.list();
     await api.cvs.get("c1");
-    await api.cvs.match("c1");
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
     expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
       "DELETE /api/profile/mi%20cv.md",
@@ -84,7 +83,6 @@ describe("api", () => {
       "GET /api/vacancies/v1/match",
       "GET /api/cvs",
       "GET /api/cvs/c1",
-      "GET /api/cvs/c1/match",
     ]);
   });
 });
@@ -226,33 +224,15 @@ describe("generateCv", () => {
 });
 
 describe("api.emailDrafts", () => {
-  it("lee el borrador del CV, lo genera con POST y lo guarda con PUT", async () => {
+  it("lee el mensaje de correo del CV y lo genera con POST", async () => {
     const fetchMock = stubFetch(() => jsonResponse(null));
     expect(await api.emailDrafts.forCv("c 1")).toBeNull();
     await api.emailDrafts.generate("c1");
-    await api.emailDrafts.save("e1", { to: "ana@example.com", subject: "S", body: "B" });
     const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
     expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
       "GET /api/cvs/c%201/email-draft",
       "POST /api/cvs/c1/email-draft",
-      "PUT /api/email-drafts/e1",
     ]);
     expect(calls[1][1]?.body).toBe("{}");
-    expect(calls[2][1]?.body).toBe(
-      JSON.stringify({ to: "ana@example.com", subject: "S", body: "B" }),
-    );
-  });
-
-  it("envía con la confirmación explícita y resuelve un envío sin confirmar (#21)", async () => {
-    const fetchMock = stubFetch(() => jsonResponse(null));
-    await api.emailDrafts.send("e 1");
-    await api.emailDrafts.resolve("e1", false);
-    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][];
-    expect(calls.map(([u, i]) => `${i?.method ?? "GET"} ${u}`)).toEqual([
-      "POST /api/email-drafts/e%201/send",
-      "POST /api/email-drafts/e1/resolve",
-    ]);
-    expect(calls[0][1]?.body).toBe(JSON.stringify({ confirmed: true }));
-    expect(calls[1][1]?.body).toBe(JSON.stringify({ sent: false }));
   });
 });

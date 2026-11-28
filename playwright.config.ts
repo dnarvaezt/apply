@@ -35,11 +35,11 @@ export default defineConfig({
   projects: [
     {
       name: "ui",
-      testIgnore: /(applications(-view)?|email-send|reply-detection|metrics|import-data)\.spec\.ts/,
+      testIgnore: /(applications(-view)?|reply-detection|metrics|import-data)\.spec\.ts/,
     },
     {
       name: "applications",
-      testMatch: /(applications(-view)?|email-send|reply-detection|metrics)\.spec\.ts/,
+      testMatch: /(applications(-view)?|reply-detection|metrics)\.spec\.ts/,
       dependencies: ["ui"],
     },
     // La importación reemplaza el índice del perfil por el del fixture: corre al final.

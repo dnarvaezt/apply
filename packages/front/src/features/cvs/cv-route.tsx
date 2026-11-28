@@ -19,9 +19,9 @@ export function CvRoute() {
 
   useEffect(() => {
     if (vacancyId) {
-      router.replace(detailTabHref(vacancyId, "cv", id));
+      router.replace(detailTabHref(vacancyId, "cv"));
     }
-  }, [vacancyId, id, router]);
+  }, [vacancyId, router]);
 
   if (load.state === "error") {
     return (

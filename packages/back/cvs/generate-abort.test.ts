@@ -42,11 +42,11 @@ afterEach(async () => {
   server = undefined;
 });
 
-async function start(create: CvsRepository["create"]): Promise<string> {
+async function start(saveForVacancy: CvsRepository["saveForVacancy"]): Promise<string> {
   const app = new Hono().basePath("/api").route(
     "/",
     cvRoutes({
-      repo: { create } as unknown as CvsRepository,
+      repo: { saveForVacancy } as unknown as CvsRepository,
       getVacancy: async () => VACANCY,
       retrieve: async () => REPORT,
       streamCv,
@@ -75,22 +75,22 @@ async function generate(url: string, signal?: AbortSignal): Promise<Response> {
 describe("POST /cvs/generate con @hono/node-server real", () => {
   it("reemite los chunks de la CLI en orden por SSE y guarda el CV (AC-001)", async () => {
     fake = useFakeClaude({}, undefined, ["# Ana\n\n", "**Dev**\n", "fin"]);
-    const create = vi.fn(async (input) => ({ id: "1", ...input }) as unknown as CvDoc);
-    const res = await generate(await start(create));
+    const saveForVacancy = vi.fn(async (input) => ({ id: "1", ...input }) as unknown as CvDoc);
+    const res = await generate(await start(saveForVacancy));
     const body = await res.text();
     const deltas = [...body.matchAll(/event: delta\ndata: (.*)\n/g)].map((m) => JSON.parse(m[1]));
     expect(deltas).toEqual(["# Ana\n\n", "**Dev**\n", "fin"]);
     expect(body).toContain("event: done");
-    expect(create).toHaveBeenCalledWith(
+    expect(saveForVacancy).toHaveBeenCalledWith(
       expect.objectContaining({ markdown: "# Ana\n\n**Dev**\nfin" }),
     );
   });
 
   it("al desconectarse el cliente a mitad del stream mata al hijo y no guarda el CV (AC-004)", async () => {
     fake = useFakeClaude({}, "hang", ["primer trozo", "nunca llega"]);
-    const create = vi.fn();
+    const saveForVacancy = vi.fn();
     const controller = new AbortController();
-    const res = await generate(await start(create), controller.signal);
+    const res = await generate(await start(saveForVacancy), controller.signal);
     const reader = res.body?.getReader();
     if (!reader) throw new Error("la respuesta no trae cuerpo");
     const decoder = new TextDecoder();
@@ -106,6 +106,6 @@ describe("POST /cvs/generate con @hono/node-server real", () => {
     controller.abort();
     await waitFor(() => !isAlive(pid));
     expect(isAlive(pid)).toBe(false);
-    expect(create).not.toHaveBeenCalled();
+    expect(saveForVacancy).not.toHaveBeenCalled();
   });
 });

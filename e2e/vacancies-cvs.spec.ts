@@ -62,8 +62,8 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   await page.getByRole("button", { name: "Guardar" }).click();
   await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
 
-  // La URL fija el tab y el CV abierto: recargar vuelve al mismo.
-  await expect(page).toHaveURL(/[?&]cv=/);
+  // La URL fija el tab; la vacante tiene un único CV (#76), así que recargar vuelve al mismo.
+  await expect(page).toHaveURL(/[?&]tab=cv$/);
   await page.reload();
   await expect(page.getByRole("tab", { name: "CV", exact: true })).toHaveAttribute(
     "aria-selected",
