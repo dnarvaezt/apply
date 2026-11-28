@@ -109,6 +109,29 @@ describe("CvEditor: alternar editar / vista previa", () => {
   });
 });
 
+describe("CvEditor: pantalla completa", () => {
+  it("Pantalla completa abre la hoja del CV con la API de fullscreen del navegador", async () => {
+    serve();
+    const requested: Element[] = [];
+    const original = Element.prototype.requestFullscreen;
+    Element.prototype.requestFullscreen = function (this: Element) {
+      requested.push(this);
+      return Promise.resolve();
+    };
+    try {
+      render(<CvEditor cvId="c1" onDeleted={() => undefined} />);
+      await screen.findByRole("heading", { name: "Ana Pérez" });
+      fireEvent.click(screen.getByRole("button", { name: "Pantalla completa" }));
+
+      expect(requested).toHaveLength(1);
+      expect(requested[0]?.getAttribute("data-id")).toBe("cv-preview-frame");
+      expect(requested[0]?.textContent).toContain("Texto original");
+    } finally {
+      Element.prototype.requestFullscreen = original;
+    }
+  });
+});
+
 describe("CvEditor: carga", () => {
   it("abre el CV pedido con su título", async () => {
     serve();
