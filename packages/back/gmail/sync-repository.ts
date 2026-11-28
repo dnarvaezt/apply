@@ -1,9 +1,9 @@
 import { and, desc, eq, gte, inArray, isNotNull, max } from "drizzle-orm";
-import { applicationContacts, contacts, gmailSyncState, outboundEmails } from "#db";
+import { applications, contacts, gmailSyncState, outboundEmails, vacancyContacts } from "#db";
 import type { Db } from "../db.ts";
 import { formatId } from "../ids.ts";
 
-/** Contacto con email conocido de la postulación (#20). */
+/** Contacto con email conocido de la vacante de la postulación (#20, #80). */
 export interface KnownContact {
   id: string;
   email: string;
@@ -23,15 +23,14 @@ export function createSyncRepository(db: Db) {
     if (!applicationIds.length) return byApplication;
     const rows = await db
       .select({
-        applicationId: applicationContacts.applicationId,
+        applicationId: applications.id,
         id: contacts.id,
         email: contacts.email,
       })
-      .from(applicationContacts)
-      .innerJoin(contacts, eq(contacts.id, applicationContacts.contactId))
-      .where(
-        and(inArray(applicationContacts.applicationId, applicationIds), isNotNull(contacts.email)),
-      );
+      .from(applications)
+      .innerJoin(vacancyContacts, eq(vacancyContacts.vacancyId, applications.vacancyId))
+      .innerJoin(contacts, eq(contacts.id, vacancyContacts.contactId))
+      .where(and(inArray(applications.id, applicationIds), isNotNull(contacts.email)));
     for (const row of rows) {
       if (!row.email) continue;
       const list = byApplication.get(row.applicationId) ?? [];

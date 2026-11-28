@@ -14,6 +14,8 @@ const VACANCY: Vacancy = {
   ...newVacancy({ title: "Backend Engineer" }),
   id: "7",
   createdAt: "2026-11-01T00:00:00.000Z",
+  status: "to_apply",
+  discardReason: null,
 };
 const REPORT = { vacancyId: "7", chunks: [] } as unknown as MatchReport;
 

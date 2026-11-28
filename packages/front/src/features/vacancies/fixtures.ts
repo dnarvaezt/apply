@@ -22,6 +22,8 @@ export function vacancy(overrides: Partial<Vacancy> = {}): Vacancy {
     posterProfileUrl: null,
     postedAt: null,
     postedAtPrecision: "unknown",
+    status: "to_apply",
+    discardReason: null,
     ...overrides,
   };
 }

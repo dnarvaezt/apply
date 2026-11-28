@@ -1,6 +1,6 @@
 import type { ApplicationContact, Contact, ContactInput } from "@apply/shared";
 import { and, asc, eq } from "drizzle-orm";
-import { applicationContacts, applications, companies, contacts, vacancies } from "#db";
+import { companies, contacts, vacancies, vacancyContacts } from "#db";
 import type { Db, Executor } from "../db.ts";
 import { formatId, parseId } from "../ids.ts";
 
@@ -34,100 +34,89 @@ function fields(input: ContactInput) {
   };
 }
 
-/** Contactos vinculados a la postulación, en el orden en que se agregaron. */
-export async function listApplicationContacts(
+/** Contactos vinculados a la vacante (#80), en el orden en que se agregaron. */
+export async function listVacancyContacts(
   tx: Executor,
-  applicationId: number,
+  vacancyId: number,
 ): Promise<ApplicationContact[]> {
   const rows = await tx
-    .select({ ...contactColumns, isProcessStart: applicationContacts.isProcessStart })
-    .from(applicationContacts)
-    .innerJoin(contacts, eq(contacts.id, applicationContacts.contactId))
+    .select({ ...contactColumns, isProcessStart: vacancyContacts.isProcessStart })
+    .from(vacancyContacts)
+    .innerJoin(contacts, eq(contacts.id, vacancyContacts.contactId))
     .leftJoin(companies, eq(companies.id, contacts.companyId))
-    .where(eq(applicationContacts.applicationId, applicationId))
-    .orderBy(asc(applicationContacts.createdAt), asc(contacts.id));
+    .where(eq(vacancyContacts.vacancyId, vacancyId))
+    .orderBy(asc(vacancyContacts.createdAt), asc(contacts.id));
   return rows.map(({ isProcessStart, ...row }) => ({ ...toContact(row), isProcessStart }));
 }
 
-/** `true` si el contacto está vinculado a la postulación. */
+/** `true` si el contacto está vinculado a la vacante. */
 export async function isLinked(
   tx: Executor,
-  applicationId: number,
+  vacancyId: number,
   contactId: number,
 ): Promise<boolean> {
   const [row] = await tx
-    .select({ contactId: applicationContacts.contactId })
-    .from(applicationContacts)
-    .where(
-      and(
-        eq(applicationContacts.applicationId, applicationId),
-        eq(applicationContacts.contactId, contactId),
-      ),
-    );
+    .select({ contactId: vacancyContacts.contactId })
+    .from(vacancyContacts)
+    .where(and(eq(vacancyContacts.vacancyId, vacancyId), eq(vacancyContacts.contactId, contactId)));
   return row !== undefined;
 }
 
-async function findApplicationContact(
+async function findVacancyContact(
   tx: Executor,
-  applicationId: number,
+  vacancyId: number,
   contactId: number,
 ): Promise<ApplicationContact | null> {
-  const linked = await listApplicationContacts(tx, applicationId);
+  const linked = await listVacancyContacts(tx, vacancyId);
   return linked.find((c) => c.id === formatId(contactId)) ?? null;
 }
 
-/** Solo un contacto inicia el proceso (C8): marcar uno desmarca los demás de la postulación. */
+/** Solo un contacto inicia el proceso (C8): marcar uno desmarca los demás de la vacante. */
 async function setProcessStart(
   tx: Executor,
-  applicationId: number,
+  vacancyId: number,
   contactId: number,
   isProcessStart: boolean,
 ): Promise<void> {
   if (isProcessStart) {
     await tx
-      .update(applicationContacts)
+      .update(vacancyContacts)
       .set({ isProcessStart: false })
-      .where(eq(applicationContacts.applicationId, applicationId));
+      .where(eq(vacancyContacts.vacancyId, vacancyId));
   }
   await tx
-    .update(applicationContacts)
+    .update(vacancyContacts)
     .set({ isProcessStart })
-    .where(
-      and(
-        eq(applicationContacts.applicationId, applicationId),
-        eq(applicationContacts.contactId, contactId),
-      ),
-    );
+    .where(and(eq(vacancyContacts.vacancyId, vacancyId), eq(vacancyContacts.contactId, contactId)));
 }
 
 export function createContactsRepository(db: Db) {
   return {
     /**
-     * Crea el contacto con la empresa de la vacante de la postulación y lo vincula a ella.
-     * `null` si la postulación no existe.
+     * Crea el contacto con la empresa de la vacante y lo vincula a ella.
+     * `null` si la vacante no existe.
      */
-    async addToApplication(
-      applicationId: string,
+    async addToVacancy(
+      vacancyId: string,
       input: ContactInput & { isProcessStart?: boolean },
     ): Promise<ApplicationContact | null> {
-      const aid = parseId(applicationId);
-      if (aid === null) return null;
+      const vid = parseId(vacancyId);
+      if (vid === null) return null;
       return db.transaction(async (tx) => {
-        const [application] = await tx
+        const [vacancy] = await tx
           .select({ companyId: vacancies.companyId })
-          .from(applications)
-          .innerJoin(vacancies, eq(vacancies.id, applications.vacancyId))
-          .where(eq(applications.id, aid));
-        if (!application) return null;
+          .from(vacancies)
+          .where(eq(vacancies.id, vid));
+        if (!vacancy) return null;
 
         const [created] = await tx
           .insert(contacts)
-          .values({ ...fields(input), companyId: application.companyId })
+          .values({ ...fields(input), companyId: vacancy.companyId })
           .returning({ id: contacts.id });
         if (!created) throw new Error("No se pudo guardar el contacto");
-        await tx.insert(applicationContacts).values({ applicationId: aid, contactId: created.id });
-        if (input.isProcessStart) await setProcessStart(tx, aid, created.id, true);
-        return findApplicationContact(tx, aid, created.id);
+        await tx.insert(vacancyContacts).values({ vacancyId: vid, contactId: created.id });
+        if (input.isProcessStart) await setProcessStart(tx, vid, created.id, true);
+        return findVacancyContact(tx, vid, created.id);
       });
     },
 
@@ -151,17 +140,17 @@ export function createContactsRepository(db: Db) {
 
     /** Marca o desmarca el inicio de proceso (REQ-005); `null` si el contacto no está vinculado. */
     async markProcessStart(
-      applicationId: string,
+      vacancyId: string,
       contactId: string,
       isProcessStart: boolean,
     ): Promise<ApplicationContact | null> {
-      const aid = parseId(applicationId);
+      const vid = parseId(vacancyId);
       const cid = parseId(contactId);
-      if (aid === null || cid === null) return null;
+      if (vid === null || cid === null) return null;
       return db.transaction(async (tx) => {
-        if (!(await isLinked(tx, aid, cid))) return null;
-        await setProcessStart(tx, aid, cid, isProcessStart);
-        return findApplicationContact(tx, aid, cid);
+        if (!(await isLinked(tx, vid, cid))) return null;
+        await setProcessStart(tx, vid, cid, isProcessStart);
+        return findVacancyContact(tx, vid, cid);
       });
     },
   };

@@ -35,7 +35,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await iso.db.execute(
-    sql`TRUNCATE application_events, application_contacts, contacts, applications, match_reports, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
+    sql`TRUNCATE application_events, vacancy_status_changes, vacancy_contacts, contacts, applications, match_reports, cvs, vacancies, companies RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -72,7 +72,7 @@ async function event(
 }
 
 async function markProcessStart(application: Application) {
-  const res = await call("POST", `/applications/${application.id}/contacts`, {
+  const res = await call("POST", `/vacancies/${application.vacancyId}/contacts`, {
     name: "Laura",
     isProcessStart: true,
   });

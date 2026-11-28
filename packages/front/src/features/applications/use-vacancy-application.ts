@@ -66,12 +66,12 @@ export function useVacancyApplication(vacancyId: string) {
     addEvent: (req: AddEventRequest) =>
       inApplication((id) => api.applications.addEvent(id, req), "Evento registrado"),
     addContact: (req: NewApplicationContactRequest) =>
-      inApplication((id) => api.contacts.add(id, req), "Contacto agregado"),
+      inApplication(() => api.contacts.add(vacancyId, req), "Contacto agregado"),
     updateContact: (contactId: string, input: ContactInput) =>
       inApplication(() => api.contacts.update(contactId, input), "Contacto guardado"),
     markProcessStart: async (contactId: string, isProcessStart: boolean) => {
       await inApplication(
-        (id) => api.contacts.markProcessStart(id, contactId, isProcessStart),
+        () => api.contacts.markProcessStart(vacancyId, contactId, isProcessStart),
         isProcessStart ? "Marcado como inicio del proceso" : "Inicio del proceso desmarcado",
       );
     },

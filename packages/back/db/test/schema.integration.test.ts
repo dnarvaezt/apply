@@ -3,7 +3,6 @@ import { eq, getTableColumns, sql } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import {
-  applicationContacts,
   applicationEvents,
   applications,
   channels,
@@ -16,6 +15,7 @@ import {
   platforms,
   profileChunks,
   vacancies,
+  vacancyContacts,
 } from "../index.ts";
 
 const db = createDb(inject("testDatabaseUrl"));
@@ -62,7 +62,7 @@ describe("esquema real contra Postgres + pgvector", () => {
   beforeEach(async () => {
     // Las tablas semilla (platforms, channels) se conservan.
     await db.execute(sql`TRUNCATE
-      application_contacts, application_events, outbound_emails, match_reports, cvs,
+      vacancy_status_changes, vacancy_contacts, application_events, outbound_emails, match_reports, cvs,
       applications, contacts, vacancies, companies, profile_chunks, gmail_sync_state
       RESTART IDENTITY CASCADE`);
   });
@@ -323,33 +323,33 @@ describe("esquema real contra Postgres + pgvector", () => {
       .values({ companyId: company?.id, name: "Luis", email: "luis@acme.com" })
       .returning();
     const [other] = await db.insert(contacts).values({ name: "Marta" }).returning();
-    const app = await newApplication((await newVacancy({ companyId: company?.id })).id);
+    const vacancy = await newVacancy({ companyId: company?.id });
     if (!contact || !other) throw new Error("contactos no creados");
-    await db.insert(applicationContacts).values([
-      { applicationId: app.id, contactId: contact.id, isProcessStart: true },
-      { applicationId: app.id, contactId: other.id },
+    await db.insert(vacancyContacts).values([
+      { vacancyId: vacancy.id, contactId: contact.id, isProcessStart: true },
+      { vacancyId: vacancy.id, contactId: other.id },
     ]);
     const [start] = await db
       .select({ name: contacts.name, email: contacts.email })
-      .from(applicationContacts)
-      .innerJoin(contacts, eq(contacts.id, applicationContacts.contactId))
-      .where(eq(applicationContacts.isProcessStart, true));
+      .from(vacancyContacts)
+      .innerJoin(contacts, eq(contacts.id, vacancyContacts.contactId))
+      .where(eq(vacancyContacts.isProcessStart, true));
     expect(start).toEqual({ name: "Luis", email: "luis@acme.com" });
   });
 
-  it("REQ-010: solo un contacto puede ser inicio de proceso por postulación", async () => {
+  it("REQ-010: solo un contacto puede ser inicio de proceso por vacante", async () => {
     const [a] = await db.insert(contacts).values({ name: "A" }).returning();
     const [b] = await db.insert(contacts).values({ name: "B" }).returning();
-    const app = await newApplication((await newVacancy()).id);
+    const vacancy = await newVacancy();
     if (!a || !b) throw new Error("contactos no creados");
     await db
-      .insert(applicationContacts)
-      .values({ applicationId: app.id, contactId: a.id, isProcessStart: true });
+      .insert(vacancyContacts)
+      .values({ vacancyId: vacancy.id, contactId: a.id, isProcessStart: true });
     expect(
       await rejection(
         db
-          .insert(applicationContacts)
-          .values({ applicationId: app.id, contactId: b.id, isProcessStart: true }),
+          .insert(vacancyContacts)
+          .values({ vacancyId: vacancy.id, contactId: b.id, isProcessStart: true }),
       ),
     ).toMatch(/duplicate key|unique/i);
   });

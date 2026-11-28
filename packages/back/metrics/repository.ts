@@ -1,6 +1,6 @@
 import type { ApplicationEventType, ContactOrigin, TrackingMetrics } from "@apply/shared";
 import { and, asc, count, countDistinct, desc, eq, exists, inArray, or, sql } from "drizzle-orm";
-import { applicationContacts, applicationEvents, applications, channels, vacancies } from "#db";
+import { applicationEvents, applications, channels, vacancies, vacancyContacts } from "#db";
 import { CLASSIFIED, type ClassifiedDefinition } from "../applications/classified.ts";
 import { activeStatusesFrom } from "../applications/status.ts";
 import type { Db } from "../db.ts";
@@ -44,11 +44,11 @@ export function createMetricsRepository(db: Db) {
       );
     const startedByContact = db
       .select({ one: sql`1` })
-      .from(applicationContacts)
+      .from(vacancyContacts)
       .where(
         and(
-          eq(applicationContacts.applicationId, applications.id),
-          eq(applicationContacts.isProcessStart, true),
+          eq(vacancyContacts.vacancyId, applications.vacancyId),
+          eq(vacancyContacts.isProcessStart, true),
         ),
       );
     const [row] = await db

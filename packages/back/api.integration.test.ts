@@ -1,6 +1,7 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { CvDoc, CvMatchReport, CvMeta, MatchReport, Vacancy } from "@apply/shared";
+import { DISCARD_REASONS, VACANCY_STATUSES } from "@apply/shared";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -38,6 +39,8 @@ const vacancySchema: z.ZodType<Vacancy> = z.strictObject({
   posterProfileUrl: z.string().nullable(),
   postedAt: z.iso.datetime().nullable(),
   postedAtPrecision: z.enum(["exact", "relative", "unknown"]),
+  status: z.enum(VACANCY_STATUSES),
+  discardReason: z.enum(DISCARD_REASONS).nullable(),
 });
 const cvMetaShape = {
   id: z.string(),

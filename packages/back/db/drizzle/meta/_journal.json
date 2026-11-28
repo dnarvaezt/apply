@@ -78,6 +78,20 @@
       "when": 1795891380759,
       "tag": "0010_single_cv_per_vacancy",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795894822540,
+      "tag": "0011_vacancy_process",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795894823761,
+      "tag": "0012_drop_application_contacts",
+      "breakpoints": true
     }
   ]
 }

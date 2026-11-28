@@ -34,12 +34,12 @@ const NOT_FOUND = { error: "Contacto no encontrado" };
 export function contactRoutes({ repo }: ContactRoutesDeps) {
   return (
     new Hono()
-      /** Crea el contacto y lo vincula a la postulación (REQ-002). */
-      .post("/applications/:id/contacts", async (c) => {
+      /** Crea el contacto y lo vincula a la vacante (REQ-002, #80). */
+      .post("/vacancies/:id/contacts", async (c) => {
         const body = await parseBody(c, newContactSchema);
         if (typeof body === "string") return c.json({ error: body }, 400);
-        const created = await repo.addToApplication(c.req.param("id"), body);
-        return created ? c.json(created, 201) : c.json({ error: "Postulación no encontrada" }, 404);
+        const created = await repo.addToVacancy(c.req.param("id"), body);
+        return created ? c.json(created, 201) : c.json({ error: "Vacante no encontrada" }, 404);
       })
 
       .put("/contacts/:id", async (c) => {
@@ -50,7 +50,7 @@ export function contactRoutes({ repo }: ContactRoutesDeps) {
       })
 
       /** Marca o desmarca el contacto como inicio del proceso (REQ-005, C8). */
-      .patch("/applications/:id/contacts/:contactId", async (c) => {
+      .patch("/vacancies/:id/contacts/:contactId", async (c) => {
         const body = await parseBody(c, processStartSchema);
         if (typeof body === "string") return c.json({ error: body }, 400);
         const linked = await repo.markProcessStart(
