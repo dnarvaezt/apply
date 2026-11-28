@@ -2,6 +2,7 @@ import { Loader2, Mail, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isGmailEnabled } from "@/features/gmail/gmail-enabled";
 import { EmailDraftForm } from "./email-draft-form";
 import { EmailSendPanel } from "./email-send-panel";
 import { useEmailDraft } from "./use-email-draft";
@@ -72,7 +73,7 @@ export function CvEmailDraft({ cvId }: { cvId: string }) {
             onDirtyChange={(dirty) => setDirtyVersion(dirty ? version : null)}
           />
         )}
-        {draft && (
+        {draft && isGmailEnabled() && (
           <EmailSendPanel
             draft={draft}
             dirty={dirtyVersion !== null && dirtyVersion === version}

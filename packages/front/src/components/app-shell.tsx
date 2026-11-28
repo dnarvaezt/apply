@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { isGmailEnabled } from "@/features/gmail/gmail-enabled";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -27,21 +28,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3">
           <h1 className="font-semibold tracking-tight">Apply</h1>
           <nav aria-label="Secciones" className="flex min-w-0 max-w-full gap-1 overflow-x-auto">
-            {SECTIONS.map(({ href, label, icon: Icon }) => {
-              const active = pathname === href || pathname.startsWith(`${href}/`);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    buttonVariants({ variant: active ? "secondary" : "ghost", size: "sm" }),
-                  )}
-                >
-                  <Icon /> {label}
-                </Link>
-              );
-            })}
+            {SECTIONS.filter(({ href }) => href !== "/gmail" || isGmailEnabled()).map(
+              ({ href, label, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(`${href}/`);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      buttonVariants({ variant: active ? "secondary" : "ghost", size: "sm" }),
+                    )}
+                  >
+                    <Icon /> {label}
+                  </Link>
+                );
+              },
+            )}
           </nav>
           <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
             Todo se guarda en local en <code>./data</code>

@@ -63,7 +63,8 @@ export default defineConfig({
     {
       command: `npm run dev -w @apply/front -- --port ${WEB_PORT}`,
       url: `http://localhost:${WEB_PORT}`,
-      env: { API_PORT: String(API_PORT) },
+      // Gmail está oculto en la interfaz (features/gmail/gmail-enabled.ts); el e2e lo sigue probando.
+      env: { API_PORT: String(API_PORT), NEXT_PUBLIC_GMAIL: "1" },
       reuseExistingServer: false,
       timeout: 60_000,
     },
