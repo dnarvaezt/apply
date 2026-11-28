@@ -1,0 +1,37 @@
+{
+  "name": "@apply/back",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "imports": {
+    "#db": "./db/index.ts",
+    "#db/migrate": "./db/migrate.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false index.ts",
+    "start": "tsx index.ts",
+    "import": "tsx import/cli.ts",
+    "match:calibrate": "tsx match-reports/calibrate-cli.ts",
+    "claude:smoke": "tsx claude/smoke.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node db/migrate.ts"
+  },
+  "dependencies": {
+    "@apply/shared": "*",
+    "@googleapis/gmail": "^22.1.0",
+    "@hono/node-server": "^2.1.11",
+    "@huggingface/transformers": "^4.3.2",
+    "drizzle-orm": "^0.45.4",
+    "google-auth-library": "^11.3.4",
+    "hono": "^4.13.22",
+    "marked": "^18.3.0",
+    "postgres": "^4.1.1",
+    "puppeteer-core": "^25.19.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.2",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15"
+  }
+}

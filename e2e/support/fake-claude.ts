@@ -3,7 +3,7 @@ import path from "node:path";
 /** Binario `claude` falso (el mismo de las pruebas de la API): extracción, correo y CV sin red. */
 export const FAKE_CLAUDE_BIN = path.resolve(
   import.meta.dirname,
-  "../../packages/api/test/fake-claude.mjs",
+  "../../packages/back/test/fake-claude.mjs",
 );
 
 /** Vacante que "extrae" Claude en el E2E; el texto pegado en la prueba no importa. */

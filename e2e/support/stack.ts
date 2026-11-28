@@ -2,8 +2,8 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { startFakeGoogle } from "../../packages/api/test/fake-google.ts";
-import { startEphemeralPostgres } from "../../packages/db/test/ephemeral-postgres.ts";
+import { startEphemeralPostgres } from "../../packages/back/db/test/ephemeral-postgres.ts";
+import { startFakeGoogle } from "../../packages/back/test/fake-google.ts";
 import { E2E_DB_URL_FILE } from "./db-url.ts";
 import { FAKE_CLAUDE_ENV } from "./fake-claude.ts";
 
@@ -29,7 +29,7 @@ const google = await startFakeGoogle(googlePort);
 const gmailConfigDir = path.join(tmpdir(), `apply-e2e-gmail-${apiPort}`);
 rmSync(gmailConfigDir, { recursive: true, force: true });
 
-const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/api"], {
+const api: ChildProcess = spawn("npm", ["run", "start", "-w", "@apply/back"], {
   stdio: "inherit",
   env: {
     ...process.env,

@@ -2,8 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./packages/db" },
-    { "path": "./packages/api" },
-    { "path": "./packages/web" }
+    { "path": "./packages/back" },
+    { "path": "./packages/front" }
   ]
 }
