@@ -11,12 +11,21 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, download } from "@/lib/api";
+import type { SelectRoute } from "@/lib/route-selection";
 import { cn } from "@/lib/utils";
 import { CvEmailDraft } from "./cv-email-draft";
 import { CvMatchPanel } from "./cv-match-panel";
 
-export function CvsPage({ initialId }: { initialId: string | null }) {
+type CvsPageProps = {
+  /** CV de la URL; sin él se muestra el primero. */
+  selectedId: string | null;
+  onSelect: SelectRoute;
+};
+
+export function CvsPage({ selectedId: routeId, onSelect }: CvsPageProps) {
   const [list, setList] = useState<CvMeta[]>([]);
+  // Sin CV en la URL se muestra el primero, sin navegar.
+  const selectedId = routeId ?? list[0]?.id ?? null;
   const [cv, setCv] = useState<CvDoc | null>(null);
   const [markdown, setMarkdown] = useState("");
   const [title, setTitle] = useState("");
@@ -51,13 +60,17 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
   useEffect(() => {
     api.cvs
       .list()
-      .then((items) => {
-        setList(items);
-        const id = initialId ?? items[0]?.id;
-        if (id) void open(id);
-      })
+      .then(setList)
       .catch((e: Error) => toast.error(e.message));
-  }, [initialId, open]);
+  }, []);
+
+  useEffect(() => {
+    if (selectedId) void open(selectedId);
+    else {
+      setCv(null);
+      setMatch(null);
+    }
+  }, [selectedId, open]);
 
   async function save(): Promise<CvDoc | null> {
     if (!cv) return null;
@@ -89,16 +102,13 @@ export function CvsPage({ initialId }: { initialId: string | null }) {
   async function remove() {
     if (!cv || !confirm(`¿Eliminar "${cv.title}"?`)) return;
     await api.cvs.remove(cv.id);
-    const rest = list.filter((m) => m.id !== cv.id);
-    setList(rest);
-    setCv(null);
-    setMatch(null);
-    if (rest[0]) void open(rest[0].id);
+    setList((prev) => prev.filter((m) => m.id !== cv.id));
+    if (routeId === cv.id) onSelect(null);
   }
 
   function switchTo(id: string) {
     if (dirty && !confirm("Hay cambios sin guardar. ¿Descartarlos?")) return;
-    void open(id);
+    onSelect(id);
   }
 
   useEffect(() => {

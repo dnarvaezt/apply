@@ -2,7 +2,7 @@
 
 Genera CVs en Markdown alineados a cada vacante usando un RAG local sobre tu información, y los exporta a PDF. Todo corre en local: tu perfil son archivos en `./data`; las vacantes y los CVs se guardan en Postgres (Docker).
 
-**Stack:** TypeScript · React 19 · Vite · Tailwind v4 · shadcn/ui · Biome · Hono (API local) · CLI `claude` · embeddings locales con Transformers.js · Chrome (puppeteer-core) para el PDF.
+**Stack:** TypeScript · React 19 · Next.js (App Router) · Tailwind v4 · shadcn/ui · Biome · Hono (API local) · CLI `claude` · embeddings locales con Transformers.js · Chrome (puppeteer-core) para el PDF.
 
 ## Requisitos
 
@@ -92,8 +92,22 @@ Atajos con `make` (`make help` los lista): `make env` crea `.env` desde `.env.ex
 ```
 packages/back/    @apply/back: API Hono; index.ts monta las rutas; por entidad: vacancies/ y cvs/ (routes + repository), companies/; db.ts (cliente), storage.ts, rag/, llm.ts, pdf.ts, fetch-url.ts
 packages/back/db/ esquema Drizzle (13 tablas), migraciones versionadas en `drizzle/`, `migrate.ts` y cliente (config en `packages/back/drizzle.config.ts`); se importa como `#db` (subpath import de @apply/back)
-packages/front/   @apply/front: Vite + React + shadcn; src/features: profile, vacancies, cvs
+packages/front/   @apply/front: Next.js (App Router) + React + shadcn; src/app solo declara las rutas, src/features tiene las vistas (profile, vacancies, cvs, applications, metrics, gmail)
 packages/shared/  @apply/shared: tipos por entidad (vacancy.ts, cv.ts, types.ts) reexportados desde index.ts, y el CSS del CV (el mismo para la vista previa y el PDF)
 ```
+
+Rutas de la web (cada vista se abre, recarga y comparte por su URL; atrás y adelante funcionan):
+
+| URL                                   | Vista                                               |
+| ------------------------------------- | --------------------------------------------------- |
+| `/`                                   | redirige a `/vacancies`                             |
+| `/vacancies`, `/vacancies/[id]`       | vacantes; sin id muestra la primera                 |
+| `/cvs`, `/cvs/[id]`                   | CVs; sin id muestra el primero                      |
+| `/applications`, `/applications/[id]` | postulaciones y la línea de tiempo de la abierta    |
+| `/profile`, `/profile/[file]`         | archivos del perfil; sin archivo muestra el primero |
+| `/metrics`                            | métricas                                            |
+| `/gmail`                              | conexión con Gmail                                  |
+
+En desarrollo Next reenvía `/api/*` a la API (`API_PORT`, 3001 por defecto; ver `packages/front/next.config.ts`).
 
 Monorrepo con npm workspaces (`packages/*`) y un único `package-lock.json`. `data/`, `.cache/models` y `.env` se resuelven siempre en la raíz del repo (`packages/back/paths.ts`), sin importar el cwd.

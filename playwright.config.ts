@@ -61,9 +61,9 @@ export default defineConfig({
       timeout: 240_000, // incluye arrancar el contenedor y, la primera vez, bajar el modelo de embeddings
     },
     {
-      command: `npm run dev -w @apply/front -- --port ${WEB_PORT} --strictPort`,
+      command: `npm run dev -w @apply/front -- --port ${WEB_PORT}`,
       url: `http://localhost:${WEB_PORT}`,
-      env: { PORT: String(API_PORT) },
+      env: { API_PORT: String(API_PORT) },
       reuseExistingServer: false,
       timeout: 60_000,
     },

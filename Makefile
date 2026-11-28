@@ -11,7 +11,7 @@ DEV_CMD ?= npm run dev
 
 # Artefactos regenerables; nunca incluye data/, .env, .cache (modelos) ni el volumen de Postgres.
 CLEAN_PATHS := reports coverage test-results playwright-report blob-report .stryker-tmp \
-	packages/front/dist node_modules/.tmp
+	packages/front/.next node_modules/.tmp
 
 running = [ -f $(PID_FILE) ] && kill -0 $$(cat $(PID_FILE)) 2>/dev/null
 

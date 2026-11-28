@@ -58,7 +58,10 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   await expect(page.getByText("Guardado", { exact: true })).toBeVisible();
 
   await page.reload();
-  await page.getByRole("tab", { name: /CVs/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /CVs/ })
+    .click();
   await expect(page.getByText("CVs generados (1)")).toBeVisible();
   await page.getByRole("button", { name: /CV editado e2e/ }).click();
   await page.getByRole("tab", { name: "Editar" }).click();
@@ -78,7 +81,10 @@ test("AC-006: crear vacante, generar CV, editarlo, descargar el PDF y borrar amb
   // Borrar el CV y la vacante
   await page.getByRole("button", { name: "Eliminar CV" }).click();
   await expect(page.getByText("Genera uno desde la pestaña Vacantes.")).toBeVisible();
-  await page.getByRole("tab", { name: /Vacantes/ }).click();
+  await page
+    .getByRole("navigation", { name: "Secciones" })
+    .getByRole("link", { name: /Vacantes/ })
+    .click();
   await page.getByRole("button", { name: "Eliminar vacante" }).click();
   await expect(page.getByText("Aún no hay vacantes.")).toBeVisible();
 
