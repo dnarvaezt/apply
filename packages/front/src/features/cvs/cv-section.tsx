@@ -25,12 +25,11 @@ export function CvSection({
   onDeleted: (id: string) => void;
 }) {
   const [regenerating, setRegenerating] = useState(false);
-  // Regenerar conserva el id del CV: el editor se vuelve a montar para leer el contenido nuevo.
-  const [generation, setGeneration] = useState(0);
+  // Regenerar elimina el CV actual y crea otro: mientras se genera, el actual ya no se muestra.
+  const [generating, setGenerating] = useState(false);
 
   function generated(doc: CvDoc) {
     setRegenerating(false);
-    setGeneration((n) => n + 1);
     onGenerated(doc);
   }
 
@@ -58,12 +57,13 @@ export function CvSection({
             replacing={cv !== null}
             onMatch={onMatch}
             onCreated={generated}
+            onGeneratingChange={setGenerating}
           />
         )}
-        {cv && (
+        {cv && !generating && (
           <>
             <CvEditor
-              key={`${cv.id}-${generation}`}
+              key={cv.id}
               cvId={cv.id}
               onSaved={onSaved}
               onDeleted={() => onDeleted(cv.id)}

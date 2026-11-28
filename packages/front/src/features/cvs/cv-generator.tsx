@@ -10,18 +10,20 @@ import { generateCv } from "@/lib/api";
 
 /**
  * Genera el CV de la vacante con instrucciones opcionales y muestra el texto mientras llega.
- * Con `replacing` el CV ya existe: regenerar reemplaza su contenido, así que pide confirmación.
+ * Con `replacing` el CV ya existe: regenerar lo elimina y crea otro, así que pide confirmación.
  */
 export function CvGenerator({
   vacancyId,
   replacing = false,
   onMatch,
   onCreated,
+  onGeneratingChange,
 }: {
   vacancyId: string;
   replacing?: boolean;
   onMatch: (report: MatchReport) => void;
   onCreated: (cv: CvDoc) => void;
+  onGeneratingChange?: (generating: boolean) => void;
 }) {
   const [instructions, setInstructions] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -32,13 +34,16 @@ export function CvGenerator({
   async function generate() {
     if (
       replacing &&
-      !confirm("Regenerar reemplaza el contenido actual del CV, incluidos los cambios sin guardar.")
+      !confirm(
+        "Regenerar elimina el CV actual y su mensaje de correo, incluidos los cambios sin guardar, y crea uno nuevo.",
+      )
     ) {
       return;
     }
     const controller = new AbortController();
     abortRef.current = controller;
     setGenerating(true);
+    onGeneratingChange?.(true);
     setStreamed("");
     try {
       const cv = await generateCv(
@@ -54,6 +59,7 @@ export function CvGenerator({
       if ((e as Error).name !== "AbortError") toast.error((e as Error).message);
     } finally {
       setGenerating(false);
+      onGeneratingChange?.(false);
       setStatus("");
       abortRef.current = null;
     }

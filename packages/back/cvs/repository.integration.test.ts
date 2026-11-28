@@ -103,23 +103,27 @@ describe("repositorio de CVs (AC-001)", () => {
 });
 
 describe("un único CV por vacante (#76)", () => {
-  it("saveForVacancy crea el CV y al regenerar reemplaza el mismo, sin uno nuevo", async () => {
+  it("saveForVacancy al regenerar elimina el CV actual y su correo, y crea uno nuevo", async () => {
     const vacancy = await vacancies.create(newVacancy());
     const first = await cvs.saveForVacancy({
       ...input(vacancy.id, "Primero"),
       vacancyId: vacancy.id,
     });
-    await new Promise((r) => setTimeout(r, 15));
+    await iso.db
+      .insert(outboundEmails)
+      .values({ cvId: Number(first.id), subject: "S", body: "B", language: "es" });
+
     const second = await cvs.saveForVacancy({
       ...input(vacancy.id, "Segundo"),
       vacancyId: vacancy.id,
       markdown: "# Nuevo",
     });
 
-    expect(second).toMatchObject({ id: first.id, title: "Segundo", markdown: "# Nuevo" });
-    expect(second.createdAt).toBe(first.createdAt);
-    expect(Date.parse(second.updatedAt)).toBeGreaterThan(Date.parse(first.updatedAt));
-    expect(await cvs.list()).toHaveLength(1);
+    expect(second).toMatchObject({ title: "Segundo", markdown: "# Nuevo", vacancyId: vacancy.id });
+    expect(second.id).not.toBe(first.id);
+    expect(await cvs.get(first.id)).toBeNull();
+    expect((await cvs.list()).map((c) => c.id)).toEqual([second.id]);
+    expect(await iso.db.select().from(outboundEmails)).toHaveLength(0);
   });
 
   it("la base rechaza un segundo CV para la misma vacante", async () => {

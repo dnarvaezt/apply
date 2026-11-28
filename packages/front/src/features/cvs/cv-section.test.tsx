@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import type { CvDoc } from "@apply/shared";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CvSection } from "./cv-section";
 
@@ -75,7 +75,43 @@ describe("CvSection: un único CV por vacante (#76)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Regenerar con IA/ }));
     fireEvent.click(screen.getByRole("button", { name: "Regenerar CV" }));
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("reemplaza"));
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining("elimina el CV actual"));
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/cvs/generate"))).toBe(false);
+  });
+
+  it("al regenerar oculta el CV actual mientras se genera el nuevo; Detener lo conserva", async () => {
+    const base = serve();
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    // El generador queda abierto hasta que se aborta, como un stream SSE en curso.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!String(input).endsWith("/cvs/generate")) return base(input);
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('event: delta\ndata: "# Nuevo"\n\n'));
+            init?.signal?.addEventListener("abort", () =>
+              controller.error(new DOMException("Detenido", "AbortError")),
+            );
+          },
+        });
+        return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
+      }),
+    );
+    const { container } = render(section(CV));
+    await screen.findByRole("tab", { name: "Vista previa" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Regenerar con IA/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Regenerar CV" }));
+    await screen.findByRole("button", { name: /Detener/ });
+    await waitFor(() => expect(container.querySelector('[data-id="cv-editor"]')).toBeNull());
+    expect(container.querySelector('[data-id="cv-email-message"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Detener/ }));
+    expect(await screen.findByRole("tab", { name: "Vista previa" })).toBeTruthy();
+    expect(container.querySelector('[data-id="cv-editor"]')).not.toBeNull();
   });
 });

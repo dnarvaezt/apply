@@ -408,6 +408,7 @@ describe("API de CVs (AC-003)", () => {
     expect(text).toContain("event: status");
     expect(text).toContain("event: match");
     expect(text.match(/event: delta/g)).toHaveLength(2);
+    const [first] = z.array(cvMetaSchema).parse(await (await call("GET", "/cvs")).json());
 
     const doc = await generateCv(vacancy.id);
     expect(cvDocSchema.parse(doc)).toEqual(doc);
@@ -417,10 +418,11 @@ describe("API de CVs (AC-003)", () => {
       markdown: "# Ana\n**Dev**",
     });
 
-    // Un único CV por vacante (#76): regenerar reemplaza el mismo CV.
+    // Un único CV por vacante (#76): regenerar elimina el CV anterior y crea uno nuevo.
     const list = z.array(cvMetaSchema).parse(await (await call("GET", "/cvs")).json());
-    expect(list).toHaveLength(1);
-    expect(list[0]?.id).toBe(doc.id);
+    expect(list.map((c) => c.id)).toEqual([doc.id]);
+    expect(doc.id).not.toBe(first?.id);
+    expect((await call("GET", `/cvs/${first?.id}`)).status).toBe(404);
     const got = cvDocSchema.parse(await (await call("GET", `/cvs/${doc.id}`)).json());
     expect(got).toEqual(doc);
   });

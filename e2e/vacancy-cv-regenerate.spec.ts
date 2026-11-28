@@ -7,7 +7,7 @@ const API = `http://localhost:${process.env.E2E_API_PORT ?? 3101}`;
 const VACANCY_TEXT =
   "Buscamos ingeniera backend senior con TypeScript y PostgreSQL para diseñar servicios, revisar código y operar APIs en producción. Trabajo remoto.";
 
-test("#76: la vacante tiene un único CV y regenerarlo con IA reemplaza el mismo", async ({
+test("#76: la vacante tiene un único CV y regenerarlo con IA elimina el actual y crea uno nuevo", async ({
   page,
   request,
 }) => {
@@ -39,10 +39,12 @@ test("#76: la vacante tiene un único CV y regenerarlo con IA reemplaza el mismo
   await expect(page.locator("textarea.font-mono")).not.toHaveValue(/Editado a mano/);
 
   const after = (await (await request.get(`${API}/api/cvs`)).json()) as CvMeta[];
-  expect(after.map((c) => c.id)).toEqual([cv?.id]);
+  expect(after).toHaveLength(1);
+  expect(after[0]?.id).not.toBe(cv?.id);
+  expect((await request.get(`${API}/api/cvs/${cv?.id}`)).status()).toBe(404);
 
   // `/cvs/[id]` lleva al tab CV de su vacante (#73), ya sin `?cv=`.
-  await page.goto(`/cvs/${cv?.id}`);
+  await page.goto(`/cvs/${after[0]?.id}`);
   await expect(page).toHaveURL(new RegExp(`/vacancies/${cv?.vacancyId}\\?tab=cv$`));
   await expect(page.getByRole("tab", { name: "Vista previa" })).toBeVisible();
 
