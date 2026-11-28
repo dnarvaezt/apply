@@ -19,7 +19,7 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
     .getByRole("navigation", { name: "Secciones" })
     .getByRole("link", { name: /Mi perfil/ })
     .click();
-  await page.getByRole("button", { name: "00-contacto.md" }).click();
+  await page.getByRole("button", { name: "00-contacto.md", exact: true }).click();
 
   const editor = page.locator("textarea:not([placeholder])");
   await expect(editor).toHaveValue(/# Contacto/);
@@ -34,7 +34,7 @@ test("el perfil se carga de la API, se edita y persiste tras recargar", async ({
     .getByRole("navigation", { name: "Secciones" })
     .getByRole("link", { name: /Mi perfil/ })
     .click();
-  await page.getByRole("button", { name: "00-contacto.md" }).click();
+  await page.getByRole("button", { name: "00-contacto.md", exact: true }).click();
   await expect(page.locator("textarea:not([placeholder])")).toHaveValue(new RegExp(marker));
 });
 

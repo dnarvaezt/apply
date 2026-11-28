@@ -4,6 +4,12 @@ export interface ProfileFile {
   updatedAt: string;
 }
 
+/** Cómo se listan los archivos del perfil: el orden manual guardado o alfabético. */
+export interface ProfileOrder {
+  mode: "custom" | "alpha";
+  order: string[];
+}
+
 export interface IndexStatus {
   builtAt: string | null;
   files: number;
